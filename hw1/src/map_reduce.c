@@ -29,6 +29,7 @@ int validateargs(int argc, char** argv){
 	char* secArg = argv[2];
 
 	//check for each case of arguments
+	if (argc > 4) return -1;
 	if (argv[1] == NULL) return -1;
 	else if (strcmp(firstArg, h) == 0)	return 0;
 	else if (strcmp(firstArg, ana) == 0) return 1;
@@ -115,9 +116,11 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 			printf("file opened\n");
 			sum = (*act)(f,results,(*fileOpen).d_name);
 			printf("%dbytes\n", sum);
-			sumResult += sum;
+
 			free(filePath);
 			fclose(f);
+			if (sum == -1) return sum;
+			else sumResult += sum;
 			printf("before: %p\tsize arg: %lu\t", (char*)output, size);
 			output = output + size;
 			printf("after: %p\n", (char*)output);
@@ -143,3 +146,83 @@ struct Analysis analysis_reduce(int n, void* results) {
 	struct Analysis anaReduce;
 	return anaReduce;
 }
+
+/**
+* This reduce function takes the results produced by map and cumulates all
+* the data to give one final Stats struct. Filename field in the final struct
+* should be set to NULL.
+*
+* @param n The number of files analyzed.
+* @param results The results array that has been populated by map.
+* @return The struct containing all the cumulated data.
+*/
+Stats stats_reduce(int n, void* results) {
+
+	Stats statReduce;
+	return statReduce;
+}
+
+/**
+* Always prints the following:
+* - The name of the file (for the final result the file with the longest line)
+* - The longest line in the directory’s length.
+* - The longest line in the directory’s line number.
+*
+* Prints only for the final result:
+* - The total number of bytes in the directory.
+*
+* If the hist parameter is non-zero print the histogram of ASCII character
+* occurrences. When printing out details for each file (i.e the -v option was
+* selected) you MUST NOT print the histogram. However, it MUST be printed for
+* the final result.
+*
+* Look at sample output for examples of how this should be print. You have to
+* match the sample output for full credit.
+*
+* @param res The final result returned by analysis_reduce
+* @param nbytes The number of bytes in the directory.
+* @param hist If this is non-zero, prints additional information. (Only non-
+* zero for printing the final result.)
+*/
+void analysis_print(struct Analysis res, int nbytes, int hist) {
+
+	printf("File: %s\n", res.filename);
+	printf("Longest line length: %d\n", res.lnlen);
+	printf("Longest line number: %d\n", res.lnno);
+
+	if (hist != 0) printf("Total bytes in directory: %d\n", nbytes);
+}
+
+/**
+ * Always prints the following:
+ * Count (total number of numbers read), Mean, Mode, Median, Q1, Q3, Min, Max
+ *
+ * Prints only for each Map result:
+ * The file name
+ *
+ * If the hist parameter is non-zero print the the histogram. When printing out
+ * details for each file (i.e the -v option was selected) you MUST NOT print the
+ * histogram. However, it MUST be printed for the final result.
+ *
+ * Look at sample output for examples of how this should be print. You have to
+ * match the sample output for full credit.
+ *
+ * @param res  The final result returned by stats_reduce
+ * @param hist If this is non-zero, prints additional information. (Only non-
+ *             zero for printing the final result.)
+ */
+void stats_print(Stats res, int hist) {
+
+	if (hist > 0) {
+		printf("Histogram:\n");
+	}
+
+	printf("Count: %d\n", res.n);
+	printf("Mean: %f\n", (float)(res.sum/res.n));
+	printf("Mode: \n");
+	printf("Q1: \n");
+	printf("Q3: \n");
+	printf("Min: \n");
+	printf("Max: \n");
+}
+
