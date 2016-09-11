@@ -1,0 +1,5 @@
+//**DO NOT** CHANGE THE PROTOTYPES FOR THE FUNCTIONS GIVEN TO YOU. WE TEST EACH
+//FUNCTION INDEPENDENTLY WITH OUR OWN MAIN PROGRAM.
+#include "map_reduce.h"
+
+//Implement map_reduce.h functions here.
