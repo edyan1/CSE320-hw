@@ -86,7 +86,8 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 	printf("map!\n");
 	void *mapOpen = opendir(dir);
 	char *dirPath = strcat(dir,"/");
-
+	char *output;
+	output = results;
 	FILE *f;
 	//char *fileName = (char*)malloc(256); //file to open allocate
 
@@ -117,6 +118,9 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 			sumResult += sum;
 			free(filePath);
 			fclose(f);
+			printf("before: %p\tsize arg: %lu\t", (char*)output, size);
+			output = output + size;
+			printf("after: %p\n", (char*)output);
 		}
 	} 
 
