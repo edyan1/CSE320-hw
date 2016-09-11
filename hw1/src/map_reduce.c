@@ -59,6 +59,7 @@ int nfiles(char* dir){
 	numfiles = 0;
 	void* open = opendir(dir);
 	while (readdir(open) != NULL) numfiles++;
+	closedir(open);
 	numfiles -= 2; //to account for . and ..
 	return numfiles;
 }
