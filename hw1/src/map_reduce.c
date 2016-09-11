@@ -63,3 +63,46 @@ int nfiles(char* dir){
 	numfiles -= 2; //to account for . and ..
 	return numfiles;
 }
+
+/**
+ * The map function goes through each file in a directory, performs some action
+ * on the file and then stores the result.
+ *
+ * @param  dir     The directory that was specified by the user.
+ * @param  results The space where map can store the result for each file.
+ * @param  size    The size of struct containing result data for each file.
+ * @param  act     The action (function map will call) that map will perform on
+ *                 each file. Its argument f is the file stream for the specific
+ *                 file. act assumes the filestream is valid, hence, map should
+ *                 make sure of it. Its argument res is the space for it to 
+ *                 store the result for that particular file. Its argument fn 
+ *                 is a string describing the filename. On failure returns -1, 
+ *                 on sucess returns value specified in description for the act
+ *                 function.
+ *
+ * @return        The map function returns -1 on failure, sum of act results on
+ *                success.
+ */
+int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, char* fn)){
+
+	void *mapOpen = opendir(dir);
+	FILE *f;
+	char *fileName = NULL; //file to open
+	struct dirent *fileOpen;
+	char* output = results;
+
+	int sumResult = 0;
+
+	for(fileOpen = readdir(mapOpen);readdir(mapOpen)==NULL;) {
+		
+		strcpy(fileName, (*fileOpen).d_name);
+		printf("%s%s\n", dir, fileName);
+		char *filePath = strcat(dir, strcat("/",fileName));
+		f = fopen(filePath,"r");
+		sumResult += (*act)(f,output,fileName);
+		output += size;
+		fclose(f);
+	}
+
+	return sumResult;
+}

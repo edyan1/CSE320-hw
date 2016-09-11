@@ -45,12 +45,17 @@ int main(int argc, char** argv) {
 
     else if (validate >= 0) {
     	//print help and exit success
-    	printf("%d\n", validate);
+    	printf("validateargs return is %d\n", validate);
     	//printf("%s", helpMenu);
     	//return EXIT_SUCCESS;
     }
 
-    printf("%d\n", nfiles(argv[2]));
+    int files;
+    files = nfiles(argv[2]);
+    printf("%d files in that dir\n", files);
+    if (files == 0) printf("No files present in the directory");
+
+    printf("The result of map() is: %d\n",map(argv[2], analysis_space, 100, cat));
 
     return EXIT_SUCCESS;
 }
