@@ -29,8 +29,9 @@ int main(int argc, char** argv) {
     }
 
     //initialize help menu string
-    char* helpMenu;
-	helpMenu = "Usage: ./mapreduce [h|v] FUNC DIR \n\tFUNC \tWhich operation you would like to run on the data:\n\t\tana - Analysis of various text files in a directory.\n\t\tstats - Calculates stats on files which contain only numbers.\n\tDIR \tThe directory in which the files are located.\n\tOptions:\n\t-h \tPrints this help menu.\n\t-v \tPrints the map function’s results, stating the file it’s from.\n\0";
+
+    char *helpMenu = (char*)malloc(500);
+    helpMenu = "Usage: ./mapreduce [h|v] FUNC DIR \n\tFUNC \tWhich operation you would like to run on the data:\n\t\tana - Analysis of various text files in a directory.\n\t\tstats - Calculates stats on files which contain only numbers.\n\tDIR \tThe directory in which the files are located.\n\tOptions:\n\t-h \tPrints this help menu.\n\t-v \tPrints the map function’s results, stating the file it’s from.\n\0";
     
 	//initialize integer var for validateargs
     int validate;
@@ -40,7 +41,7 @@ int main(int argc, char** argv) {
     	//print help and exit fail
     	printf("%d\n", validate);
 		printf("%s", helpMenu);
-		//return EXIT_FAILURE;
+		return EXIT_FAILURE;
     }
 
     else if (validate >= 0) {
@@ -51,11 +52,19 @@ int main(int argc, char** argv) {
     }
 
     int files;
-    files = nfiles(argv[2]);
+    char *dir = argv[2];
+    files = nfiles(dir);
     printf("%d files in that dir\n", files);
-    if (files == 0) printf("No files present in the directory");
-
-    printf("The result of map() is: %d\n",map(argv[2], analysis_space, 100, cat));
+    
+    if (files == 0) { 
+    	printf("No files present in the directory\n");
+    	return EXIT_SUCCESS;
+    }
+    
+    printf("%lu\n", sizeof(struct Analysis));
+   
+    int a = map(dir, analysis_space, sizeof(struct Analysis), cat);
+    printf("%d\n",a);
 
     return EXIT_SUCCESS;
 }

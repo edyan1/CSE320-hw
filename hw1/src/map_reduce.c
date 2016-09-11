@@ -28,9 +28,6 @@ int validateargs(int argc, char** argv){
 	char* firstArg = argv[1];
 	char* secArg = argv[2];
 
-	//test to see if args were correctly read in
-	printf("%s\t%s\n",firstArg, secArg);
-
 	//check for each case of arguments
 	if (argv[1] == NULL) return -1;
 	else if (strcmp(firstArg, h) == 0)	return 0;
@@ -57,6 +54,7 @@ int nfiles(char* dir){
 
 	int numfiles;
 	numfiles = 0;
+	
 	void* open = opendir(dir);
 	while (readdir(open) != NULL) numfiles++;
 	closedir(open);
@@ -85,24 +83,59 @@ int nfiles(char* dir){
  */
 int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, char* fn)){
 
+	printf("map!\n");
 	void *mapOpen = opendir(dir);
+	char *dirPath = strcat(dir,"/");
+
 	FILE *f;
-	char *fileName = NULL; //file to open
+	//char *fileName = (char*)malloc(256); //file to open allocate
+
+	//char *filePoint = filePath;
 	struct dirent *fileOpen;
-	char* output = results;
-
+	//struct Analysis *output = results;
+	int sum = 0;
 	int sumResult = 0;
+	int done = 0;
 
-	for(fileOpen = readdir(mapOpen);readdir(mapOpen)==NULL;) {
+	while(done == 0) {
+		fileOpen = readdir(mapOpen);
+
+		if (fileOpen == NULL) done = 1;
+		else {
+			printf("%s\n", dirPath);
+			char *filePath = (char*)malloc(512); //file path allocate
+			strcpy(filePath,dirPath);
+			
+			strcat(filePath,(*fileOpen).d_name);
+			//filePath - (int)sizeof(filePath);
+			printf("%s\n", filePath);
 		
-		strcpy(fileName, (*fileOpen).d_name);
-		printf("%s%s\n", dir, fileName);
-		char *filePath = strcat(dir, strcat("/",fileName));
-		f = fopen(filePath,"r");
-		sumResult += (*act)(f,output,fileName);
-		output += size;
-		fclose(f);
-	}
+			f = fopen(filePath,"r");
+			printf("file opened\n");
+			sum = (*act)(f,results,(*fileOpen).d_name);
+			printf("%dbytes\n", sum);
+			sumResult += sum;
+			free(filePath);
+			fclose(f);
+		}
+	} 
 
+	closedir(mapOpen);
+	//free(filePath);
 	return sumResult;
+}
+
+/**
+ * This reduce function takes the results produced by map and cumulates all
+ * the data to give one final Analysis struct. Final struct should contain 
+ * filename of file which has longest line.
+ *
+ * @param  n       The number of files analyzed.
+ * @param  results The results array that has been populated by map.
+ * @return         The struct containing all the cumulated data.
+ */
+struct Analysis analysis_reduce(int n, void* results) {
+
+	struct Analysis anaReduce;
+	return anaReduce;
 }
