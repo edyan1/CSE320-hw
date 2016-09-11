@@ -90,11 +90,9 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 	char *output;
 	output = results;
 	FILE *f;
-	//char *fileName = (char*)malloc(256); //file to open allocate
 
-	//char *filePoint = filePath;
 	struct dirent *fileOpen;
-	//struct Analysis *output = results;
+	
 	int sum = 0;
 	int sumResult = 0;
 	int done = 0;
@@ -104,26 +102,21 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 
 		if (fileOpen == NULL) done = 1;
 		else {
-			printf("%s\n", dirPath);
+	
 			char *filePath = (char*)malloc(512); //file path allocate
 			strcpy(filePath,dirPath);
 			
 			strcat(filePath,(*fileOpen).d_name);
-			//filePath - (int)sizeof(filePath);
-			printf("%s\n", filePath);
-		
 			f = fopen(filePath,"r");
-			printf("file opened\n");
-			sum = (*act)(f,results,(*fileOpen).d_name);
+			
+			sum = (*act)(f,output,(*fileOpen).d_name);
 			printf("%dbytes\n", sum);
 
 			free(filePath);
 			fclose(f);
 			if (sum == -1) return sum;
 			else sumResult += sum;
-			printf("before: %p\tsize arg: %lu\t", (char*)output, size);
 			output = output + size;
-			printf("after: %p\n", (char*)output);
 		}
 	} 
 
@@ -226,3 +219,74 @@ void stats_print(Stats res, int hist) {
 	printf("Max: \n");
 }
 
+/**
+ * This function performs various different analyses on a file. It
+ * calculates the total number of bytes in the file, stores the longest line
+ * length and the line number, and frequencies of ASCII characters in the file.
+ *
+ * @param  f        The filestream on which the action will be performed. You
+ *                  you can assume the filestream passed by map will be valid.
+ * @param  res      The slot in the results array in which the data will be
+ *                  stored.
+ * @param  filename The filename of the file currently being processed.
+ * @return          Return the number of bytes read.
+ */
+int analysis(FILE* f, void* res, char* filename){
+
+	char c;
+	int bytesRead = 0; //byte counter
+	int linecount = 0; //store value in longest, then reset to 0 if newline
+	int linenum = 1; //stores the line number
+	int longest = 0; //amount of bytes in the longest line
+	int linenumLong = 1; //line number of the longest line
+	int ascii[128];
+	memset(ascii, 0, (sizeof(int)*128));
+
+	while((c = fgetc(f)) != EOF) {
+        
+        if ((int)c == 10) { //new line found
+        	//if bytecount for current line is larger than previous longest line
+        	if(linecount > longest) {
+        		longest = linecount;
+        		linenumLong = linenum;
+        	}
+        	linecount = 0;
+        	ascii[10]++;
+        	linenum++;
+        }
+        else {
+        	longest++;
+        	ascii[(int)c]++;
+        }
+        bytesRead++;
+    }
+
+    //copy the ascii count array into res
+    memmove(res, ascii, 512);
+    res += 512;
+    memmove(res, &longest, 4);
+    res += 4;
+    memmove(res, &linenumLong, 4);
+    res += 4;
+    memmove(res, &filename, 6);
+    res -= 528;
+    
+	return bytesRead;
+}
+
+/**
+ * This function counts the number of occurrences of each number in a file. It
+ * also calculates the sum total of all numbers in the file and how many numbers
+ * are in the file. If the file has an invalid entry return -1.
+ *
+ * @param  f        The filestream on which the action will be performed. You
+ *                  you can assume the filestream passed by map will be valid.
+ * @param  res      The slot in the results array in which the data will be
+ *                  stored.
+ * @param  filename The filename of the file currently being processed.
+ * @return          Return 0 on success and -1 on failure.
+ */
+int stats(FILE* f, void* res, char* filename){
+
+	return 0;
+}

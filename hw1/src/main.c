@@ -23,11 +23,6 @@ int cat(FILE* f, void* res, char* filename) {
 
 int main(int argc, char** argv) {
     
-    for (int i = 0; i < argc; ++i)
-    {
-        printf("argv[%d]: %s\n", i, argv[i]);
-    }
-
     //initialize help menu string
 
     char *helpMenu = (char*)malloc(500);
@@ -63,7 +58,7 @@ int main(int argc, char** argv) {
     
     printf("%lu\n", sizeof(struct Analysis));
    
-    int a = map(dir, analysis_space, sizeof(struct Analysis), cat);
+    int a = map(dir, analysis_space, sizeof(struct Analysis), analysis);
     printf("%d\n",a);
 
     return EXIT_SUCCESS;
