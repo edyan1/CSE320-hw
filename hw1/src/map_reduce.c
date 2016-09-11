@@ -3,6 +3,8 @@
 #include "map_reduce.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
 
 //Implement map_reduce.h functions here.
 
@@ -17,9 +19,46 @@
  *              is chosen and 4 if stats is chosen.
  */
 int validateargs(int argc, char** argv){
-	char* helpMenu;
-	helpMenu = "Usage: ./mapreduce [h|v] FUNC DIR \n\tFUNC \tWhich operation you would like to run on the data:\n\t\tana - Analysis of various text files in a directory.\n\t\tstats - Calculates stats on files which contain only numbers.\n\tDIR \tThe directory in which the files are located.\n\tOptions:\n\t-h \tPrints this help menu.\n\t-v \tPrints the map function’s results, stating the file it’s from.\n\0";
+	
+	//check if second argument is "-h"
+	char* h = "-h";
+	char* v = "-v";
+	char* ana = "ana";
+	char* stats = "stats";
+	char* firstArg = argv[1];
+	char* secArg = argv[2];
 
-	printf("%s", helpMenu);
-	return 0;
+	//test to see if args were correctly read in
+	printf("%s\t%s\n",firstArg, secArg);
+
+	//check for each case of arguments
+	if (argv[1] == NULL) return -1;
+	else if (strcmp(firstArg, h) == 0)	return 0;
+	else if (strcmp(firstArg, ana) == 0) return 1;
+	else if (strcmp(firstArg, stats) == 0) return 2;
+	else if (strcmp(firstArg, v) == 0) {
+		if (secArg == NULL) return -1;
+		else if (strcmp(secArg, ana) == 0) return 3;
+		else if (strcmp(secArg, stats)==0)return 4;
+		else return -1;
+	}
+	else return -1;
+}
+
+/**
+ * Counts the number of files in a directory EXCLUDING . and ..
+ * @param  dir The directory for which number of files is desired.
+ * @return     The number of files in the directory EXCLUDING . and ..
+ *             If nfiles returns 0, then print "No files present in the
+ *             directory." and the program should return EXIT_SUCCESS.
+ *             Returns -1 if any sort of failure or error occurs.
+ */
+int nfiles(char* dir){
+
+	int numfiles;
+	numfiles = 0;
+	void* open = opendir(dir);
+	while (readdir(open) != NULL) numfiles++;
+	numfiles -= 2; //to account for . and ..
+	return numfiles;
 }
