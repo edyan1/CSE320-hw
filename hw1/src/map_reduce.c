@@ -1,6 +1,7 @@
 //**DO NOT** CHANGE THE PROTOTYPES FOR THE FUNCTIONS GIVEN TO YOU. WE TEST EACH
 //FUNCTION INDEPENDENTLY WITH OUR OWN MAIN PROGRAM.
 #include "map_reduce.h"
+#include "const.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,11 +28,21 @@ int validateargs(int argc, char** argv){
 	char* stats = "stats";
 	char* firstArg = argv[1];
 	char* secArg = argv[2];
+	char* thirdArg = argv[3];
 
 	//check for each case of arguments
+
 	if (argc > 4) return -1;
 	if (argv[1] == NULL) return -1;
-	else if (strcmp(firstArg, h) == 0)	return 0;
+
+	DIR* dir = opendir(thirdArg);
+
+	if (dir) {
+		closedir(dir);
+	}
+	else return -1;
+
+	if (strcmp(firstArg, h) == 0)	return 0;
 	else if (strcmp(firstArg, ana) == 0) return 1;
 	else if (strcmp(firstArg, stats) == 0) return 2;
 	else if (strcmp(firstArg, v) == 0) {
@@ -270,7 +281,7 @@ int analysis(FILE* f, void* res, char* filename){
     res += 4;
     memmove(res, &filename, 6);
     res -= 528;
-    
+
 	return bytesRead;
 }
 
@@ -287,6 +298,51 @@ int analysis(FILE* f, void* res, char* filename){
  * @return          Return 0 on success and -1 on failure.
  */
 int stats(FILE* f, void* res, char* filename){
+
+	char c;
+	int histo[NVAL];
+	int number;
+	int sum = 0;
+	int numCount = 0;
+	memset(histo, 0, (sizeof(int)*NVAL));
+
+	while((c = fgetc(f)) != EOF) {
+		if ((int)c > 57) return -1
+		if ((int)c < 48) {
+			//check if space or new line
+			if ((int)c==10||(int)c==32) {
+				numCount++; //increase number count by 1 after a whitespace
+			}
+			else return -1;
+			//if not digit, space or new line, return -1
+		}
+		//if digit is found, do another while loop until a white space is found
+		//if something is found that is not a digit, space or new line
+		//return -1
+		else {
+			char num[10];
+			int i = 0;
+			num[i] = c;
+			i++;
+			while(((int)c = fgetc(f)) < 57){
+				if((int)c > 48) {
+					num[i] = (int)c;
+					i++;
+				}
+				else if ((int)c == 10 ||(int)c == 32){
+					int j = 1;
+					for (i; i > 0; i--){
+						number = (num[i] - 48)*j;
+						j *= 10;
+					}
+					break;
+				}
+			}
+			free(num);
+			histo[number] += 1;
+			sum += number;
+		}
+	}
 
 	return 0;
 }

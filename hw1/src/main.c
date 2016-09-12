@@ -1,4 +1,5 @@
 #include "map_reduce.h"
+#include "const.h"
 #include <stdio.h>
 #include <stdlib.h>
 
