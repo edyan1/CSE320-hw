@@ -139,6 +139,31 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 struct Analysis analysis_reduce(int n, void* results) {
 
 	struct Analysis anaReduce;
+	
+	anaReduce.lnlen = 0;
+	anaReduce.lnno = 0;
+
+	//loop for however many files mapped
+	for(int a = n; a > 0; a--){
+		int *x;
+		x = results;
+		for (int i = 0; i < 128; i++){
+			anaReduce.ascii[i] = *x;
+			x++;	
+		}
+		if (*x > anaReduce.lnlen) {
+			anaReduce.lnlen = *x;
+			x++;
+			anaReduce.lnno = *x;
+			x++;
+			anaReduce.filename = (char*)x;
+		}
+		else x += 2;
+		if (anaReduce.filename == NULL) anaReduce.filename = (char*)x;
+		results = results + (int)sizeof(struct Analysis);
+		
+	}
+	
 	return anaReduce;
 }
 
@@ -154,6 +179,25 @@ struct Analysis analysis_reduce(int n, void* results) {
 Stats stats_reduce(int n, void* results) {
 
 	Stats statReduce;
+	statReduce.sum = 0;
+	statReduce.n = 0;
+
+//loop for however many files mapped
+	for(int a = n; a > 0; a--){
+		int *x;
+		x = results;
+		for (int i = 0; i < 128; i++){
+			statReduce.histogram[i] = *x;
+			x++;	
+		}
+		statReduce.sum += *x;
+		x++;
+		statReduce.n += *x;
+		
+		results = results + (int)sizeof(Stats);
+		
+	}
+
 	return statReduce;
 }
 
