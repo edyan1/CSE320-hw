@@ -28,19 +28,12 @@ int validateargs(int argc, char** argv){
 	char* stats = "stats";
 	char* firstArg = argv[1];
 	char* secArg = argv[2];
-	char* thirdArg = argv[3];
+	//char* thirdArg = argv[3];
 
 	//check for each case of arguments
 
 	if (argc > 4) return -1;
 	if (argv[1] == NULL) return -1;
-
-	DIR* dir = opendir(thirdArg);
-
-	if (dir) {
-		closedir(dir);
-	}
-	else return -1;
 
 	if (strcmp(firstArg, h) == 0)	return 0;
 	else if (strcmp(firstArg, ana) == 0) return 1;
@@ -95,7 +88,6 @@ int nfiles(char* dir){
  */
 int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, char* fn)){
 
-	printf("map!\n");
 	void *mapOpen = opendir(dir);
 	char *dirPath = strcat(dir,"/");
 	char *output;
@@ -121,7 +113,6 @@ int map(char* dir, void* results, size_t size, int (*act)(FILE* f, void* res, ch
 			f = fopen(filePath,"r");
 			
 			sum = (*act)(f,output,(*fileOpen).d_name);
-			printf("%dbytes\n", sum);
 
 			free(filePath);
 			fclose(f);

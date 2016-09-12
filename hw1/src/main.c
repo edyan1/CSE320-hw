@@ -40,11 +40,11 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
     }
 
-    else if (validate >= 0) {
+    else if (validate == 0) {
     	//print help and exit success
     	printf("validateargs return is %d\n", validate);
-    	//printf("%s", helpMenu);
-    	//return EXIT_SUCCESS;
+    	printf("%s", helpMenu);
+    	return EXIT_SUCCESS;
     }
 
     int files;
@@ -57,9 +57,9 @@ int main(int argc, char** argv) {
     	return EXIT_SUCCESS;
     }
     
-    printf("%lu\n", sizeof(struct Analysis));
+    printf("%lu\n", sizeof(Stats));
    
-    int a = map(dir, analysis_space, sizeof(struct Analysis), analysis);
+    int a = map(dir, analysis_space, sizeof(struct Analysis), stats);
     printf("%d\n",a);
 
     return EXIT_SUCCESS;
