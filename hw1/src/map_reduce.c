@@ -307,7 +307,7 @@ int stats(FILE* f, void* res, char* filename){
 	memset(histo, 0, (sizeof(int)*NVAL));
 
 	while((c = fgetc(f)) != EOF) {
-		if ((int)c > 57) return -1
+		if ((int)c > 57) return -1;
 		if ((int)c < 48) {
 			//check if space or new line
 			if ((int)c==10||(int)c==32) {
@@ -324,25 +324,34 @@ int stats(FILE* f, void* res, char* filename){
 			int i = 0;
 			num[i] = c;
 			i++;
-			while(((int)c = fgetc(f)) < 57){
+			while((int)(c = fgetc(f)) < 57){
 				if((int)c > 48) {
 					num[i] = (int)c;
 					i++;
 				}
 				else if ((int)c == 10 ||(int)c == 32){
 					int j = 1;
-					for (i; i > 0; i--){
+					for (; i > 0; i--){
 						number = (num[i] - 48)*j;
 						j *= 10;
 					}
 					break;
 				}
 			}
-			free(num);
+			
 			histo[number] += 1;
 			sum += number;
 		}
 	}
-
+	//copy the histo count array into res
+    memmove(res, histo, (NVAL*(int)sizeof(int)));
+    res += (NVAL*(int)sizeof(int));
+    memmove(res, &sum, 4);
+    res += 4;
+    memmove(res, &numCount, 4);
+    res += 4;
+    memmove(res, &filename, 6);
+    res -= (NVAL*(int)sizeof(int));
+    res = res - 4 - 4 - 6;
 	return 0;
 }
