@@ -229,7 +229,19 @@ void analysis_print(struct Analysis res, int nbytes, int hist) {
 	printf("Longest line length: %d\n", res.lnlen);
 	printf("Longest line number: %d\n", res.lnno);
 
-	if (hist != 0) printf("Total bytes in directory: %d\n", nbytes);
+	if (hist != 0) {
+		printf("Total bytes in directory: %d\n", nbytes);
+		printf("Histogram: \n");
+		for (int i = 0; i < (int)sizeof(res.ascii); i++){
+			if (res.ascii[i] > 0){
+				printf("%d:",i);
+				for (int j = 0; j < res.ascii[i]; j++){
+					printf("-");
+				}
+				printf("\n");
+			}
+		}
+	}
 }
 
 /**
@@ -252,17 +264,49 @@ void analysis_print(struct Analysis res, int nbytes, int hist) {
  */
 void stats_print(Stats res, int hist) {
 
+	int mode = 0;
+	for (int h = 0; h < (sizeof(res.histogram)/sizeof(int)); h++){
+		if (res.histogram[mode] < res.histogram[h]) mode = h;
+	}
+
+
+	int median;
+	int medianFind = sizeof(res.histogram)/sizeof(int)/2;
+	median = res.histogram[medianFind];
+	int q1Find = (sizeof(res.histogram)/sizeof(int))*0.25;
+	int q1 = res.histogram[q1Find];
+	int q3Find = (sizeof(res.histogram)/sizeof(int))*0.75;
+	int q3 = res.histogram[q3Find];
+	int min = res.histogram[0];
+	int max = res.histogram[sizeof(res.histogram)/sizeof(int)];
+
 	if (hist > 0) {
 		printf("Histogram:\n");
+		for (int i = 0; i < (sizeof(res.histogram)/sizeof(int)); i++){
+			if (res.histogram[i] > 0){
+				printf("%d\t:",i);
+				for (int j = 0; j < res.histogram[i]; j++){
+					printf("-");
+				}
+				printf("\n");
+			}
+		}
 	}
 
 	printf("Count: %d\n", res.n);
 	printf("Mean: %f\n", (float)(res.sum/res.n));
-	printf("Mode: \n");
-	printf("Q1: \n");
-	printf("Q3: \n");
-	printf("Min: \n");
-	printf("Max: \n");
+
+	printf("Mode: ");
+	for (int k = 0; k < (sizeof(res.histogram)/sizeof(int)); k++){
+		if (res.histogram[mode] == res.histogram[k]) printf("%d ",k);
+	}
+	
+	printf("\n");
+	printf("Median: %d\n", median);
+	printf("Q1: %d\n", q1);
+	printf("Q3: %d\n", q3);
+	printf("Min: %d\n", min);
+	printf("Max: %d\n", max);
 }
 
 /**

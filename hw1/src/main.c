@@ -56,11 +56,7 @@ int main(int argc, char** argv) {
     	printf("No files present in the directory\n");
     	return EXIT_SUCCESS;
     }
-    
-    printf("%lu\n", sizeof(Stats));
    
-    int a = map(dir, analysis_space, sizeof(struct Analysis), stats);
-    printf("%d\n",a);
 
     return EXIT_SUCCESS;
 }
