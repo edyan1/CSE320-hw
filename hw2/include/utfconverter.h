@@ -2,11 +2,8 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "utfconverter.h"
 #include <getopt.h>
-#include <utfconverter.h>
 #include <string.h>
-#include "utfconverter.c"
 #include <stdbool.h>
 
 
@@ -27,6 +24,7 @@
 #define P(x) ()
 #endif
 
+
 /** The enum for endianness. */
 typedef enum {LITTLE, BIG} endianness;
 
@@ -41,12 +39,7 @@ typedef struct Glyph {
 extern char* filename;
 
 /** The usage statement. */
-const char* USAGE = { 
-"Usage:  ./utfconverter FILENAME [OPTION]\n\t",
-"./utfconverter -h\t\t\tDisplays this usage statement.\n\t",
-"./utfconverter --help\t\t\tDisplays this usage statement.\n\t"
-"./utfconverter --UTF-16=ENDIANNESS\tEndianness to convert to.\n",
-}
+const char* USAGE = "Command line utility for converting files from UTF-16LE to UTF-16BE or vice versa.\n\nUsage:  ./utf [-h] -u OUT_ENC IN_FILE\n\n\tOption arguments:\n\t\t-h\t\tDisplays this usage statement.\n\n\tMandatory argument:\n\t\t-u OUT_ENC\tSets the output encoding.\n\t\t\t\tValid values for OUT_ENC: 16LE, 16BE\n\n\tPositional Arguments:\n\t\tIN_FILE\tThe file to convert.\n";
 
 /** Which endianness to convert to. */
 extern endianness conversion;
@@ -74,7 +67,7 @@ Glyph* swap_endianness P((Glyph*));
  * 			file.
  * @return Returns a pointer to the filled-in glyph.
  */
-Glyph* fill_glyph P((Glyph*, unsigned int, endianness, int*));
+Glyph* fill_glyph P((Glyph*, unsigned int[], endianness, int*));
 
 /**
  * Writes the given glyph's contents to stdout.
