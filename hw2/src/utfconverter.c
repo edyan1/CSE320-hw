@@ -15,31 +15,35 @@ int
 main(int argc, char** argv)
 {
 
-	int fd = open("rsrc/utf16le.txt", O_RDONLY);
+	int fd; 
 	unsigned int buf[2] = {0, 0};
 	int rv; 
 
 	Glyph* glyph = malloc(sizeof(Glyph)); 
-
+	filename = (char*) malloc(100);
 	/* After calling parse_args(), filename and conversion should be set. */
 	parse_args(argc, argv);
-
-
 	
-	
+	fd = open(filename, O_RDWR);
+	if(fd < 0) {
+		fprintf(stderr, "File not found.\n");
+		quit_converter(NO_FD); 
+	}
 	/* Handle BOM bytes for UTF16 specially. 
          * Read our values into the first and second elements. */
-	if((rv = read(fd, &buf['0'], 1)) == 1 && 
-			(rv = read(fd, &buf['1'], 1)) == 1){ 
+	if((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1){ 
 
 		void* memset_return = memset(glyph, 0, sizeof(Glyph)+1);
 
-		if(buf['0'] == 0xff && buf['1'] == 0xfe){
+		if(buf[0] == 0xfe && buf[1] == 0xff){
 			/*file is big endian*/
 			source = BIG; 
-		} else if(buf['0'] == 0xfe && buf['1'] == 0xff){
+		} else if(buf[0] == 0xff && buf[1] == 0xfe){
 			/*file is little endian*/
 			source = LITTLE;
+		} else if(buf[0] == 0xef && buf[1] == 0xbb){
+			/*file is utf-8*/
+			source = UTF8;
 		} else {
 			/*file has no BOM*/
 			free(&glyph->bytes); 
@@ -70,26 +74,50 @@ main(int argc, char** argv)
 		}
 	}
 
+	/*check if file is already in the requested endianness*/
+	if (source == conversion) {
+		if(conversion == BIG) printf("File is already in Big endian.\n");
+		else if (conversion == LITTLE) printf("File is already in Little endian.\n");
+		else printf("File is already UTF-8.\n");
+		free(filename);
+		free(glyph);
+		quit_converter(NO_FD);
+	}
+
+	if (source != conversion) {
+		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le*/
+		lseek(fd, -2, SEEK_CUR);
+		write(fd, &buf[1], 1);
+		write(fd, &buf[0], 1);
+	}
 	/* Now deal with the rest of the bytes.*/
 	while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
 		
-		void* memset_return = memset(glyph, 0, sizeof(Glyph)+1);
+		void* memset_return = memset(glyph, 0, sizeof(Glyph));
+		/* Memory write failed, recover from it: */
+	    if(memset_return == NULL){
+		    /* tweak write permission on heap memory. */
+		    __asm__ volatile (
+		    	"movl $8, %esi\n"
+		        "movl $.LC0, %edi\n"
+		        "movl $0, %eax");
+		    /* Now make the request again. */
+		    memset(glyph, 0, sizeof(Glyph)+1);
+	    }
 
-		write_glyph(fill_glyph(glyph, NULL, source, &fd));
+		/*swap the position of the bites */
+		lseek(fd, -2, SEEK_CUR);
+		write(fd, &buf[1], 1);
+		write(fd, &buf[0], 1);
+
+		/* write_glyph(fill_glyph(glyph, buf, source, &fd)); */
 		
-	        /* Memory write failed, recover from it: */
-	        if(memset_return == NULL){
-		        /* tweak write permission on heap memory. */
-		        __asm__ volatile (
-		        	"movl $8, %esi\n"
-		            "movl $.LC0, %edi\n"
-		            "movl $0, %eax");
-		        /* Now make the request again. */
-		        memset(glyph, 0, sizeof(Glyph)+1);
-	        }
+	    
 	}
 
+	free(filename);
 	free(glyph);
+	printf("\n");
 	quit_converter(NO_FD);
 	return 0;
 }
@@ -109,22 +137,20 @@ Glyph* swap_endianness(Glyph* glyph) {
 Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd) 
 {
 	
-	unsigned int* data;
-	unsigned int bits = '0'; 
-	data = bytes;
+	unsigned int bits = 0; 
 
-	glyph->bytes[0] = data[0];
-	glyph->bytes[1] = data[1];
+	glyph->bytes[0] = bytes[0];
+	glyph->bytes[1] = bytes[1];
 
 	
-	bits |= (data[FIRST] + (data[SECOND] << 8));
+	bits |= (bytes[FIRST] + (bytes[SECOND] << 8));
 	/* Check high surrogate pair using its special value range.*/
 	
 	if(bits > 0x000F && bits < 0xF8FF){ 
-		if(read(*fd, &data[SECOND], 1) == 1 && 
-			read(*fd, &data[FIRST], 1) == 1){
-			bits = '0'; /* bits |= (bytes[FIRST] + (bytes[SECOND] << 8)) */
-			if(bits > 0xDAAF && bits < 0x00FF){ /* Check low surrogate pair.*/
+		if(read(*fd, &bytes[SECOND], 1) == 1 && read(*fd, &bytes[FIRST], 1) == 1){
+			bits |= (bytes[FIRST] + (bytes[SECOND] << 8));
+			if(bits > 0xDAAF && bits < 0x00FF){ /* Check low surrogate pair. */
+				lseek(*fd, -OFFSET, SEEK_CUR); 
 				glyph->surrogate = false; 
 			} else {
 				lseek(*fd, -OFFSET, SEEK_CUR); 
@@ -132,11 +158,14 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 			}
 		}
 	}
+
+	/* if (bits > 0xffff) glyph->surrogate = true; */
+
 	if(!glyph->surrogate){
 		glyph->bytes[THIRD] = glyph->bytes[FOURTH] |= 0;
 	} else {
-		glyph->bytes[THIRD] = data[FIRST]; 
-		glyph->bytes[FOURTH] = data[SECOND];
+		glyph->bytes[THIRD] = bytes[FIRST]; 
+		glyph->bytes[FOURTH] = bytes[SECOND];
 	}
 	glyph->end = end;
 
@@ -148,6 +177,7 @@ void write_glyph(Glyph*glyph) {
 		write(STDIN_FILENO, glyph->bytes, SURROGATE_SIZE);
 	} else {
 		write(STDIN_FILENO, glyph->bytes, NON_SURROGATE_SIZE);
+		
 	}
 }
 
@@ -174,8 +204,8 @@ void parse_args(int argc, char** argv) {
 			case 'h':
 				print_help();
 			case 'u':
-				endian_convert = optarg;
-			
+				endian_convert = argv[optind];
+				break;
 
 			default:
 				fprintf(stderr, "Unrecognized argument.\n");
@@ -185,25 +215,29 @@ void parse_args(int argc, char** argv) {
 
 	}
 
-	if(optind < argc){
-		strcpy(filename, argv[optind]);
-	} else {
-		fprintf(stderr, "Filename not given.\n");
-		print_help();
-	}
-
 	if(endian_convert == NULL){
 		fprintf(stderr, "Converson mode not given.\n");
 		print_help();
 	}
 
-	if(strcmp(endian_convert, "16LE")){ 
+	if(strcmp(endian_convert, "16LE")==0){ 
 		conversion = LITTLE;
-	} else if(strcmp(endian_convert, "16BE")){
+	} else if(strcmp(endian_convert, "16BE")==0){
 		conversion = BIG;
 	} else {
-		quit_converter(NO_FD);
+		fprintf(stderr, "Output encoding not given.\n");
+		print_help();		
 	}
+
+	if(optind < argc){
+		strcpy(filename, argv[optind+1]);
+	} else {
+		fprintf(stderr, "Filename not given.\n");
+		print_help();
+	}
+
+
+	
 }
 
 void print_help(void) {

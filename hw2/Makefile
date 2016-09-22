@@ -8,6 +8,7 @@ REQ = $(SRC) $(wildcard include/*.h)
 all: $(BIN)
 
 $(BIN): build/utfconverter.o
+	@mkdir -p bin
 	$(CC) $(CFLAGS) -I $(INCLUDE) $(SRC) -o $(BIN)
 
 build/utfconverter.o: $(SRC)
@@ -17,5 +18,5 @@ build/utfconverter.o: $(SRC)
 .PHONY: clean
 
 clean:
-	rm -f bin build
+	rm -rf bin build
 

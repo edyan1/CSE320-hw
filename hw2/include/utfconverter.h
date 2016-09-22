@@ -13,10 +13,10 @@
 #define NO_FD -1
 #define OFFSET 4
 
-#define FIRST  10000000
-#define SECOND 20000000
-#define THIRD  30000000
-#define FOURTH 40000000
+#define FIRST  0 /*was 1000 0000 */
+#define SECOND 1 /*was 2000 0000 */
+#define THIRD  2 /*was 3000 0000 */
+#define FOURTH 3 /*was 4000 0000 */
 
 #ifdef __STDC__
 #define P(x) x
@@ -26,7 +26,7 @@
 
 
 /** The enum for endianness. */
-typedef enum {LITTLE, BIG} endianness;
+typedef enum {LITTLE, BIG, UTF8} endianness;
 
 /** The struct for a codepoint glyph. */
 typedef struct Glyph {
