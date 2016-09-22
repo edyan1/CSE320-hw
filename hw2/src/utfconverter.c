@@ -33,7 +33,18 @@ main(int argc, char** argv)
          * Read our values into the first and second elements. */
 	if((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1){ 
 
-		void* memset_return = memset(glyph, 0, sizeof(Glyph)+1);
+		memset(glyph, 0, sizeof(Glyph));
+		/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
+		 Memory write failed, recover from it: */
+	    /*if(memset_return == NULL){
+		     tweak write permission on heap memory.
+		    __asm__ volatile (
+		    	"movl $8, %esi\n"
+		        "movl $.LC0, %edi\n"
+		        "movl $0, %eax");
+		     Now make the request again. */
+		   /* memset(glyph, 0, sizeof(Glyph)+1);
+	    } */
 
 		if(buf[0] == 0xfe && buf[1] == 0xff){
 			/*file is big endian*/
@@ -62,16 +73,7 @@ main(int argc, char** argv)
 			memset(glyph, 0, sizeof(Glyph)+1);
 			}
 		*/
-		if(memset_return == NULL){
-			/* tweak write permission on heap memory. */
-			__asm__ volatile (
-				"movl $8, %esi\n"
-			    "movl $.LC0, %edi\n"
-			    "movl $0, %eax"
-			);
-			/* Now make the request again. */
-			memset(glyph, 0, sizeof(Glyph)+1);
-		}
+		
 	}
 
 	/*check if file is already in the requested endianness*/
@@ -93,17 +95,19 @@ main(int argc, char** argv)
 	/* Now deal with the rest of the bytes.*/
 	while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
 		
-		void* memset_return = memset(glyph, 0, sizeof(Glyph));
-		/* Memory write failed, recover from it: */
-	    if(memset_return == NULL){
-		    /* tweak write permission on heap memory. */
+		memset(glyph, 0, sizeof(Glyph));
+
+		/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
+		 Memory write failed, recover from it: */
+	    /*if(memset_return == NULL){
+		     tweak write permission on heap memory. 
 		    __asm__ volatile (
 		    	"movl $8, %esi\n"
 		        "movl $.LC0, %edi\n"
 		        "movl $0, %eax");
-		    /* Now make the request again. */
-		    memset(glyph, 0, sizeof(Glyph)+1);
-	    }
+		     Now make the request again. */
+		   /* memset(glyph, 0, sizeof(Glyph)+1);
+	    } */
 
 		/*swap the position of the bites */
 		lseek(fd, -2, SEEK_CUR);
