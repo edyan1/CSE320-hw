@@ -11,7 +11,7 @@
 #define SURROGATE_SIZE 2
 #define NON_SURROGATE_SIZE 1
 #define NO_FD -1
-#define OFFSET 4
+#define OFFSET 2
 
 #define FIRST  0 /*was 1000 0000 */
 #define SECOND 1 /*was 2000 0000 */

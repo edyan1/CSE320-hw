@@ -46,13 +46,14 @@ main(int argc, char** argv)
 		   /* memset(glyph, 0, sizeof(Glyph)+1);
 	    } */
 
-		if(buf[0] == 0xfe && buf[1] == 0xff){
+		/* Check for both endianness of the system*/
+		if((buf[0] == 0xfe && buf[1] == 0xff) || (buf[0] == 0xfe000000 && buf[1] == 0xff000000)  ){
 			/*file is big endian*/
 			source = BIG; 
-		} else if(buf[0] == 0xff && buf[1] == 0xfe){
+		} else if((buf[0] == 0xff && buf[1] == 0xfe) || (buf[0] == 0xff000000 && buf[1] == 0xfe000000)){
 			/*file is little endian*/
 			source = LITTLE;
-		} else if(buf[0] == 0xef && buf[1] == 0xbb){
+		} else if((buf[0] == 0xef && buf[1] == 0xbb) || (buf[0] == 0xef000000 && buf[1]==0xbb000000)){
 			/*file is utf-8*/
 			source = UTF8;
 		} else {
@@ -81,6 +82,12 @@ main(int argc, char** argv)
 		if(conversion == BIG) printf("File is already in Big endian.\n");
 		else if (conversion == LITTLE) printf("File is already in Little endian.\n");
 		else printf("File is already UTF-8.\n");
+		/* Print file as is to STDOUT */
+		while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
+			memset(glyph, 0, sizeof(Glyph));
+			write_glyph(fill_glyph(glyph, buf, source, &fd));
+		}
+		printf("\n");
 		free(filename);
 		free(glyph);
 		quit_converter(NO_FD);
@@ -114,7 +121,7 @@ main(int argc, char** argv)
 		write(fd, &buf[1], 1);
 		write(fd, &buf[0], 1);
 
-		/* write_glyph(fill_glyph(glyph, buf, source, &fd)); */
+		write_glyph(fill_glyph(glyph, buf, source, &fd));
 		
 	    
 	}
@@ -153,7 +160,7 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 	if(bits > 0x000F && bits < 0xF8FF){ 
 		if(read(*fd, &bytes[SECOND], 1) == 1 && read(*fd, &bytes[FIRST], 1) == 1){
 			bits |= (bytes[FIRST] + (bytes[SECOND] << 8));
-			if(bits > 0xDAAF && bits < 0x00FF){ /* Check low surrogate pair. */
+			if(bits > 0xDAAF || bits < 0x00FF){ /* Check low surrogate pair. */
 				lseek(*fd, -OFFSET, SEEK_CUR); 
 				glyph->surrogate = false; 
 			} else {
@@ -178,9 +185,9 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 
 void write_glyph(Glyph*glyph) {
 	if(glyph->surrogate){
-		write(STDIN_FILENO, glyph->bytes, SURROGATE_SIZE);
+		write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
 	} else {
-		write(STDIN_FILENO, glyph->bytes, NON_SURROGATE_SIZE);
+		write(STDOUT_FILENO, glyph->bytes, NON_SURROGATE_SIZE);
 		
 	}
 }
