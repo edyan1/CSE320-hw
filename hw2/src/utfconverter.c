@@ -10,10 +10,13 @@
 #include <limits.h>
 
 char* filename;
+char* fileout;
 endianness source;
 endianness conversion;
 static int verbos;
 static int bytecount;
+FILE* wr;
+int writeFlag;
 
 int main(int argc, char** argv)
 {
@@ -21,15 +24,19 @@ int main(int argc, char** argv)
 	int fd; 
 	unsigned int buf[2] = {0, 0};
 	int rv; 
-
+	
 	Glyph* glyph = malloc(sizeof(Glyph)); 
 	filename = (char*) malloc(100);
 	verbos = 0;
+	fileout = (char*) malloc(100);
 
+	writeFlag = 0;
 	/* After calling parse_args(), filename and conversion should be set. */
 	parse_args(argc, argv);
 	
 	fd = open(filename, O_RDWR);
+	if (writeFlag == 1)	wr = fopen(fileout, "a");
+
 	if(fd < 0) {
 		fprintf(stderr, "File not found.\n");
 		quit_converter(NO_FD); 
@@ -97,18 +104,26 @@ int main(int argc, char** argv)
 		
 		print_verbosity(verbos);
 		close(fd);
+		
 		free(filename);
+		free(fileout);
 		free(glyph);
 		quit_converter(NO_FD);
 	}
 
-	if (source == UTF8) convert(conversion); /*convert from utf8 */
+	if (source == UTF8) convert(glyph, conversion); /*convert from utf8 */
 
 	else if (source != conversion && source != UTF8) {
 		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le*/
 		lseek(fd, -2, SEEK_CUR);
 		write(fd, &buf[1], 1);
 		write(fd, &buf[0], 1);
+
+		/*write the BOM to the new output file*/
+		if(writeFlag == 1){		
+			fwrite(&buf[1], 1, 1, wr);
+			fwrite(&buf[0], 1, 1, wr);
+		}
 	}
 	/* Now deal with the rest of the bytes.*/
 	if (source != UTF8) {
@@ -143,8 +158,10 @@ int main(int argc, char** argv)
 	printf("\n");
 	print_verbosity(verbos);
 	free(filename);
+	free(fileout);
 	free(glyph);
 	close(fd);
+	fclose(wr);
 	quit_converter(NO_FD);
 	return 0;
 }
@@ -161,7 +178,7 @@ Glyph* swap_endianness(Glyph* glyph) {
 	return glyph;
 }
 
-void convert(endianness end){
+void convert(Glyph* glyph, endianness end){
 	/*Convert from UTF-8 to UTF-16BE or LE */
 	int bits;
 	unsigned int utf[4] = {0,0,0,0};	
@@ -176,6 +193,9 @@ void convert(endianness end){
 		writeTo[0] = 254;
 		writeTo[1] = 255;
 		while ( read(fd, &utf[0], 1) == 1){
+
+			bytecount += 2;
+			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
 				writeTo[w] = '\0';
@@ -219,6 +239,8 @@ void convert(endianness end){
 				writeTo[w] = (surr2 & 0x00ff);
 				w++;
 			}
+
+			write_glyph(fill_glyph(glyph, (unsigned int*)writeTo, conversion, &fd));
 		}
 		writeTo[w] = '\0';
 	}
@@ -226,6 +248,9 @@ void convert(endianness end){
 		writeTo[0] = 255;
 		writeTo[1] = 254;
 		while ( read(fd, &utf[0], 1) == 1){
+
+			bytecount += 2;
+			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
 				writeTo[w] = utf[0];
@@ -271,6 +296,8 @@ void convert(endianness end){
 				writeTo[w] = (surr2 >> 8);
 				w++;
 			}
+
+			write_glyph(fill_glyph(glyph, (unsigned int*)writeTo, conversion, &fd));
 		}
 		writeTo[w] = '\0';
 	}
@@ -322,9 +349,11 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 
 void write_glyph(Glyph*glyph) {
 	if(glyph->surrogate){
-		write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
+		if(writeFlag == 1) fwrite(glyph->bytes, 1 ,sizeof(glyph->bytes), wr);
+		else write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
 	} else {
-		write(STDOUT_FILENO, glyph->bytes, NON_SURROGATE_SIZE);
+		if(writeFlag == 1) fwrite(glyph->bytes, 1 ,sizeof(glyph->bytes), wr);
+		else write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
 		
 	}
 }
@@ -400,13 +429,17 @@ void parse_args(int argc, char** argv) {
 
 	if(optind < argc){
 		strcpy(filename, argv[optind]);
+		optind++;
 	} else {
 		fprintf(stderr, "Filename not given.\n");
 		print_help();
 		quit_converter(NO_FD);
 	}
 
-
+	if(optind < argc){
+		strcpy(fileout, argv[optind]);
+		writeFlag = 1;
+	}
 	
 }
 

@@ -65,7 +65,7 @@ Glyph* swap_endianness P((Glyph*));
  *@param end The endianness to convert to (UTF-16LE or UTF-16BE).
  *@return the converted glyph.
  */
- void convert(endianness end);
+ void convert P((Glyph*, endianness));
 
 /**
  * Fills in a glyph with the given data in data[2], with the given endianness 
