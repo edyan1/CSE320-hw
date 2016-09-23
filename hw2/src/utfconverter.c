@@ -6,13 +6,16 @@
 #include <getopt.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/utsname.h>
+#include <limits.h>
 
 char* filename;
 endianness source;
 endianness conversion;
+static int verbos;
+static int bytecount;
 
-int 
-main(int argc, char** argv)
+int main(int argc, char** argv)
 {
 
 	int fd; 
@@ -21,6 +24,8 @@ main(int argc, char** argv)
 
 	Glyph* glyph = malloc(sizeof(Glyph)); 
 	filename = (char*) malloc(100);
+	verbos = 0;
+
 	/* After calling parse_args(), filename and conversion should be set. */
 	parse_args(argc, argv);
 	
@@ -32,7 +37,7 @@ main(int argc, char** argv)
 	/* Handle BOM bytes for UTF16 specially. 
          * Read our values into the first and second elements. */
 	if((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1){ 
-
+		bytecount += 2;
 		memset(glyph, 0, sizeof(Glyph));
 		/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
 		 Memory write failed, recover from it: */
@@ -84,10 +89,13 @@ main(int argc, char** argv)
 		else printf("File is already UTF-8.\n");
 		/* Print file as is to STDOUT */
 		while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
+			bytecount += 2;
 			memset(glyph, 0, sizeof(Glyph));
 			write_glyph(fill_glyph(glyph, buf, source, &fd));
 		}
 		printf("\n");
+		
+		print_verbosity(verbos);
 		free(filename);
 		free(glyph);
 		quit_converter(NO_FD);
@@ -101,7 +109,7 @@ main(int argc, char** argv)
 	}
 	/* Now deal with the rest of the bytes.*/
 	while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
-		
+		bytecount += 2;
 		memset(glyph, 0, sizeof(Glyph));
 
 		/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
@@ -126,9 +134,11 @@ main(int argc, char** argv)
 	    
 	}
 
+	
+	printf("\n");
+	print_verbosity(verbos);
 	free(filename);
 	free(glyph);
-	printf("\n");
 	quit_converter(NO_FD);
 	return 0;
 }
@@ -198,8 +208,10 @@ void parse_args(int argc, char** argv) {
 
 	/*struct.txt */
 	static struct option long_options[] = {
+
 		{"help", no_argument, 0, 'h'},
-		{"h", no_argument, 0, 'h'},
+		{"UTF", required_argument, 0, 'u'},
+		
 		{0, 0, 0, 0}
 	};
 
@@ -209,15 +221,29 @@ void parse_args(int argc, char** argv) {
 
 	/* If getopt() returns with a valid (its working correctly) 
 	 * return code, then process the args! */
-	if((c = getopt_long(argc, argv, "hu", long_options, &option_index)) 
+	while((c = getopt_long(argc, argv, "v::hu:", long_options, &option_index)) 
 			!= -1){
 		switch(c){ 
+			case 'v':
+				verbos++;
+				int j;
+				if (optarg != NULL) {
+					for(j = 0; optarg[j]!=0; j++){
+						if (optarg[j] == 'v') verbos++;
+						else if (optarg[j] != 'v') {
+							fprintf(stderr, "Unrecognized argument.\n");
+							quit_converter(NO_FD);
+						}
+					}
+				}
+				break;
 			case 'h':
 				print_help();
-			case 'u':
-				endian_convert = argv[optind];
 				break;
-
+			case 'u':
+				endian_convert = optarg;
+				break;
+			
 			default:
 				fprintf(stderr, "Unrecognized argument.\n");
 				quit_converter(NO_FD);
@@ -229,6 +255,7 @@ void parse_args(int argc, char** argv) {
 	if(endian_convert == NULL){
 		fprintf(stderr, "Converson mode not given.\n");
 		print_help();
+		quit_converter(NO_FD);
 	}
 
 	if(strcmp(endian_convert, "16LE")==0){ 
@@ -237,14 +264,16 @@ void parse_args(int argc, char** argv) {
 		conversion = BIG;
 	} else {
 		fprintf(stderr, "Output encoding not given.\n");
-		print_help();		
+		print_help();
+		quit_converter(NO_FD);	
 	}
 
 	if(optind < argc){
-		strcpy(filename, argv[optind+1]);
+		strcpy(filename, argv[optind]);
 	} else {
 		fprintf(stderr, "Filename not given.\n");
 		print_help();
+		quit_converter(NO_FD);
 	}
 
 
@@ -254,16 +283,57 @@ void parse_args(int argc, char** argv) {
 void print_help(void) {
 
 	printf("%s", USAGE);
-	quit_converter(NO_FD);
+	/*quit_converter(NO_FD);*/
 }
 
-void 
-quit_converter(int fd) {
+void quit_converter(int fd) {
 	close(STDERR_FILENO);
 	close(STDIN_FILENO);
 	close(STDOUT_FILENO);
 	if(fd != NO_FD)
 		close(fd);
-	exit(0);
+	exit(0);	
+}
+
+void print_verbosity(int verbos){
+
 	
+	char actualpath [PATH_MAX +1];
+	char *filepath;
+	char *endianSource;
+	char *endianConverted;
+	char *host;
+	char *os;
+	struct utsname opsys;
+	double kilo = (double)bytecount/1000;
+
+	filepath = realpath(filename, actualpath);
+	uname(&opsys);
+	os = opsys.sysname;
+	host = opsys.nodename;
+
+	if (source == BIG) endianSource = "16BE";
+	if (source == LITTLE) endianSource = "16LE";
+	if (conversion == BIG) endianConverted = "16BE";
+	if (conversion == LITTLE) endianConverted = "16LE";
+
+	printf("Level of verbosity: %d\n", verbos);
+	if (verbos == 1){
+		fprintf(stderr,"Input file size: %lf kB\n", kilo);
+		fprintf(stderr,"Input file path: %s\n", filepath);
+		fprintf(stderr,"Input file encoding: UTF-%s\n", endianSource);
+		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
+		fprintf(stderr,"Hostmachine: %s\n", host);
+		fprintf(stderr,"Operating System: %s\n", os);
+	}
+	else if (verbos > 1){
+		fprintf(stderr,"Input file size: %lf kB\n", kilo);
+		fprintf(stderr,"Input file path: %s\n", filepath);
+		fprintf(stderr,"Input file encoding: UTF-%s\n", endianSource);
+		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
+		fprintf(stderr,"Hostmachine: %s\n", host);
+		fprintf(stderr,"Operating System: %s\n", os);
+
+	}
+	else return;
 }
