@@ -225,7 +225,54 @@ void convert(endianness end){
 	else if (end == LITTLE){
 		writeTo[0] = 255;
 		writeTo[1] = 254;
-
+		while ( read(fd, &utf[0], 1) == 1){
+		
+			if (utf[0] < 0xc2){
+				writeTo[w] = utf[0];
+				w++;
+				writeTo[w] = '\0';
+				w++;
+			}
+			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
+				read(fd, &utf[1], 1);
+				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
+				writeTo[w] = (bits & 0x00ff);
+				w++;
+				writeTo[w] = (bits >> 8);
+				w++;
+			}
+			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
+				read(fd, &utf[1], 1);
+				read(fd, &utf[2], 1);
+				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
+				writeTo[w] = (bits & 0x00ff);
+				w++;
+				writeTo[w] = (bits >> 8);
+				w++;
+			}
+			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
+				read(fd, &utf[1], 1);
+				read(fd, &utf[2], 1);
+				read(fd, &utf[3], 1);
+				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
+				bits -= 65536; /* subtract 0x10000 */
+				int surr1 = bits >> 10;
+				int surr2 = bits & 0x3ff;
+				surr1 += 0xd800;
+				surr2 += 0xdc00;
+				writeTo[w] = (surr1 & 0x00ff);
+				
+				w++;
+				writeTo[w] = (surr1 >> 8);
+				w++;
+				writeTo[w] = (surr2 & 0x00ff);
+				
+				w++;
+				writeTo[w] = (surr2 >> 8);
+				w++;
+			}
+		}
+		writeTo[w] = '\0';
 	}
 
 	lseek(fd, 0, SEEK_SET);
