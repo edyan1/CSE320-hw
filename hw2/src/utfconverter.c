@@ -50,7 +50,7 @@ int main(int argc, char** argv)
 		     Now make the request again. */
 		   /* memset(glyph, 0, sizeof(Glyph)+1);
 	    } */
-
+		
 		/* Check for both endianness of the system*/
 		if((buf[0] == 0xfe && buf[1] == 0xff) || (buf[0] == 0xfe000000 && buf[1] == 0xff000000)  ){
 			/*file is big endian*/
@@ -96,42 +96,47 @@ int main(int argc, char** argv)
 		printf("\n");
 		
 		print_verbosity(verbos);
+		close(fd);
 		free(filename);
 		free(glyph);
 		quit_converter(NO_FD);
 	}
 
-	if (source != conversion) {
+	if (source == UTF8) convert(conversion); /*convert from utf8 */
+
+	else if (source != conversion && source != UTF8) {
 		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le*/
 		lseek(fd, -2, SEEK_CUR);
 		write(fd, &buf[1], 1);
 		write(fd, &buf[0], 1);
 	}
 	/* Now deal with the rest of the bytes.*/
-	while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
-		bytecount += 2;
-		memset(glyph, 0, sizeof(Glyph));
+	if (source != UTF8) {
+		while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
+			bytecount += 2;
+			memset(glyph, 0, sizeof(Glyph));
 
-		/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
-		 Memory write failed, recover from it: */
-	    /*if(memset_return == NULL){
-		     tweak write permission on heap memory. 
-		    __asm__ volatile (
-		    	"movl $8, %esi\n"
-		        "movl $.LC0, %edi\n"
-		        "movl $0, %eax");
-		     Now make the request again. */
-		   /* memset(glyph, 0, sizeof(Glyph)+1);
-	    } */
+			/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
+			 Memory write failed, recover from it: */
+		    /*if(memset_return == NULL){
+			     tweak write permission on heap memory. 
+			    __asm__ volatile (
+			    	"movl $8, %esi\n"
+			        "movl $.LC0, %edi\n"
+			        "movl $0, %eax");
+			     Now make the request again. */
+			   /* memset(glyph, 0, sizeof(Glyph)+1);
+		    } */
 
-		/*swap the position of the bites */
-		lseek(fd, -2, SEEK_CUR);
-		write(fd, &buf[1], 1);
-		write(fd, &buf[0], 1);
+			/*swap the position of the bites */
+			lseek(fd, -2, SEEK_CUR);
+			write(fd, &buf[1], 1);
+			write(fd, &buf[0], 1);
 
-		write_glyph(fill_glyph(glyph, buf, source, &fd));
-		
+			write_glyph(fill_glyph(glyph, buf, source, &fd));
+			
 	    
+	    }
 	}
 
 	
@@ -139,6 +144,7 @@ int main(int argc, char** argv)
 	print_verbosity(verbos);
 	free(filename);
 	free(glyph);
+	close(fd);
 	quit_converter(NO_FD);
 	return 0;
 }
@@ -153,6 +159,80 @@ Glyph* swap_endianness(Glyph* glyph) {
 	}
 	glyph->end = conversion;
 	return glyph;
+}
+
+void convert(endianness end){
+	/*Convert from UTF-8 to UTF-16BE or LE */
+	int bits;
+	unsigned int utf[4] = {0,0,0,0};	
+	int fd = open(filename, O_RDWR);
+	int fsize = lseek(fd, 0, SEEK_END);
+	int w = 2; /* Write point for utf16 */
+	lseek(fd, 3, SEEK_SET); /*offset from start by 3 bytes for BOM */
+	unsigned char* writeTo = (unsigned char*)malloc(fsize*2);
+
+	/*Write the UTF-16 BOM depending on endian*/
+	if (end == BIG){
+		writeTo[0] = 254;
+		writeTo[1] = 255;
+		while ( read(fd, &utf[0], 1) == 1){
+		
+			if (utf[0] < 0xc2){
+				writeTo[w] = '\0';
+				w++;
+				writeTo[w] = utf[0];
+				w++;
+			}
+			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
+				read(fd, &utf[1], 1);
+				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
+				writeTo[w] = (bits >> 8);
+				w++;
+				writeTo[w] = (bits & 0x00ff);
+				w++;
+			}
+			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
+				read(fd, &utf[1], 1);
+				read(fd, &utf[2], 1);
+				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
+				writeTo[w] = (bits >> 8);
+				w++;
+				writeTo[w] = (bits & 0x00ff);
+				w++;
+			}
+			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
+				read(fd, &utf[1], 1);
+				read(fd, &utf[2], 1);
+				read(fd, &utf[3], 1);
+				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
+				bits -= 65536; /* subtract 0x10000 */
+				int surr1 = bits >> 10;
+				int surr2 = bits & 0x3ff;
+				surr1 += 0xd800;
+				surr2 += 0xdc00;
+				writeTo[w] = (surr1 >> 8);
+				w++;
+				writeTo[w] = (surr1 & 0x00ff);
+				w++;
+				writeTo[w] = (surr2 >> 8);
+				w++;
+				writeTo[w] = (surr2 & 0x00ff);
+				w++;
+			}
+		}
+		writeTo[w] = '\0';
+	}
+	else if (end == LITTLE){
+		writeTo[0] = 255;
+		writeTo[1] = 254;
+
+	}
+
+	lseek(fd, 0, SEEK_SET);
+	write(fd, &writeTo[0], w+1);
+	close(fd);
+	free(writeTo);
+	return;
 }
 
 Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd) 
@@ -262,8 +342,11 @@ void parse_args(int argc, char** argv) {
 		conversion = LITTLE;
 	} else if(strcmp(endian_convert, "16BE")==0){
 		conversion = BIG;
+	} else if(strcmp(endian_convert, "8") ==0) {
+		fprintf(stderr, "Conversion to UTF-8 not supported.\n");
+		quit_converter(NO_FD);
 	} else {
-		fprintf(stderr, "Output encoding not given.\n");
+		fprintf(stderr, "Output encoding invalid or not provided.\n");
 		print_help();
 		quit_converter(NO_FD);	
 	}
@@ -314,6 +397,7 @@ void print_verbosity(int verbos){
 
 	if (source == BIG) endianSource = "16BE";
 	if (source == LITTLE) endianSource = "16LE";
+	if (source == UTF8) endianSource = "8";
 	if (conversion == BIG) endianConverted = "16BE";
 	if (conversion == LITTLE) endianConverted = "16LE";
 

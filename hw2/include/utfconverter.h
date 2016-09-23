@@ -58,6 +58,16 @@ extern endianness source;
 Glyph* swap_endianness P((Glyph*));
 
 /**
+ *A function that converts a UTF-8 glyph to a UTF-16LE or UTF-16BE
+ *glyph, and retu rns the result as a pointer to the converted glyph.
+ *
+ *@param glyph The UTF-8 glyph to convert.
+ *@param end The endianness to convert to (UTF-16LE or UTF-16BE).
+ *@return the converted glyph.
+ */
+ void convert(endianness end);
+
+/**
  * Fills in a glyph with the given data in data[2], with the given endianness 
  * by end.
  *
@@ -100,4 +110,8 @@ void print_help P((void));
  */
 void quit_converter P((int));
 
+/**
+ * Prints verbosity at end of program.
+ * @param the verbosity counter, 1 for level 1 verbosity, 2 or higher is level 2 verbosity
+ */
 void print_verbosity P((int));
