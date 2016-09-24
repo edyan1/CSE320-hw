@@ -34,8 +34,11 @@ int main(int argc, char** argv)
 	/* After calling parse_args(), filename and conversion should be set. */
 	parse_args(argc, argv);
 	
-	fd = open(filename, O_RDWR);
-	if (writeFlag == 1)	wr = fopen(fileout, "a");
+	if( (fd = open(filename, O_RDWR)) == 0) EXIT_FAILURE;
+	if (writeFlag == 1)	{
+		wr = fopen(fileout, "a");
+		if (wr == NULL) EXIT_FAILURE;
+	}
 
 	if(fd < 0) {
 		fprintf(stderr, "File not found.\n");
@@ -114,10 +117,11 @@ int main(int argc, char** argv)
 	if (source == UTF8) convert(glyph, conversion); /*convert from utf8 */
 
 	else if (source != conversion && source != UTF8) {
-		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le*/
+		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le
 		lseek(fd, -2, SEEK_CUR);
 		write(fd, &buf[1], 1);
 		write(fd, &buf[0], 1);
+		*/
 
 		/*write the BOM to the new output file*/
 		if(writeFlag == 1){		
@@ -143,12 +147,12 @@ int main(int argc, char** argv)
 			   /* memset(glyph, 0, sizeof(Glyph)+1);
 		    } */
 
-			/*swap the position of the bites */
+			/*swap the position of the bites 
 			lseek(fd, -2, SEEK_CUR);
 			write(fd, &buf[1], 1);
-			write(fd, &buf[0], 1);
+			write(fd, &buf[0], 1); */
 
-			write_glyph(fill_glyph(glyph, buf, source, &fd));
+			write_glyph(swap_endianness(fill_glyph(glyph, buf, source, &fd)));
 			
 	    
 	    }
@@ -170,9 +174,11 @@ Glyph* swap_endianness(Glyph* glyph) {
 	/* Use XOR to be more efficient with how we swap values. */
 	glyph->bytes[0] ^= glyph->bytes[1];
 	glyph->bytes[1] ^= glyph->bytes[0];
+	glyph->bytes[0] ^= glyph->bytes[1];
 	if(glyph->surrogate){  /* If a surrogate pair, swap the next two bytes. */
 		glyph->bytes[2] ^= glyph->bytes[3];
 		glyph->bytes[3] ^= glyph->bytes[2];
+		glyph->bytes[2] ^= glyph->bytes[3];
 	}
 	glyph->end = conversion;
 	return glyph;
@@ -184,41 +190,66 @@ void convert(Glyph* glyph, endianness end){
 	unsigned int utf[4] = {0,0,0,0};	
 	int fd = open(filename, O_RDWR);
 	int fsize = lseek(fd, 0, SEEK_END);
-	int w = 2; /* Write point for utf16 */
-	lseek(fd, 3, SEEK_SET); /*offset from start by 3 bytes for BOM */
+	//int w = 2; /* Write point for utf16 */
+	lseek(fd, 0, SEEK_SET); /*offset from start by 3 bytes for BOM */
 	unsigned char* writeTo = (unsigned char*)malloc(fsize*2);
 
-	/*Write the UTF-16 BOM depending on endian*/
+	
 	if (end == BIG){
-		writeTo[0] = 254;
-		writeTo[1] = 255;
+
+		/*Write the UTF-16 BOM depending on endian*/
+		read(fd, &utf[0], 1);
+		read(fd, &utf[1], 1);
+		read(fd, &utf[2], 1);
+		/*read away the first 3 bytes of the BOM */
+		utf[0] = 254;
+		utf[1] = 255;
+		memset(glyph, 0, sizeof(Glyph));
+		write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+	
+
 		while ( read(fd, &utf[0], 1) == 1){
 
 			bytecount += 2;
 			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
-				writeTo[w] = '\0';
-				w++;
-				writeTo[w] = utf[0];
-				w++;
+				//writeTo[w] = '\0';
+				//w++;
+				//writeTo[w] = utf[0];
+				//w++;
+				utf[1] = utf[0];
+				utf[0] = '\0';
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+		
 			}
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
 				read(fd, &utf[1], 1);
 				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
-				writeTo[w] = (bits >> 8);
-				w++;
-				writeTo[w] = (bits & 0x00ff);
-				w++;
+				//writeTo[w] = (bits >> 8);
+				utf[0] = (bits >> 8);
+				//w++;
+				utf[1] = (bits & 0x00ff);
+				//writeTo[w] = (bits & 0x00ff);
+				//w++;
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+				
 			}
 			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
-				writeTo[w] = (bits >> 8);
-				w++;
-				writeTo[w] = (bits & 0x00ff);
-				w++;
+				//writeTo[w] = (bits >> 8);
+				//w++;
+				//writeTo[w] = (bits & 0x00ff);
+				//w++;
+				utf[0] = (bits >> 8);
+				utf[1] = (bits & 0x00ff);
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+				
 			}
 			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
 				read(fd, &utf[1], 1);
@@ -230,50 +261,82 @@ void convert(Glyph* glyph, endianness end){
 				int surr2 = bits & 0x3ff;
 				surr1 += 0xd800;
 				surr2 += 0xdc00;
-				writeTo[w] = (surr1 >> 8);
-				w++;
-				writeTo[w] = (surr1 & 0x00ff);
-				w++;
-				writeTo[w] = (surr2 >> 8);
-				w++;
-				writeTo[w] = (surr2 & 0x00ff);
-				w++;
+				//writeTo[w] = (surr1 >> 8);
+				//w++;
+				utf[0] = (surr1 >> 8);
+				//writeTo[w] = (surr1 & 0x00ff);
+				//w++;
+				utf[1] = (surr1 & 0x00ff);
+				//writeTo[w] = (surr2 >> 8);
+				//w++;
+				utf[2] = (surr2 >> 8);
+				//writeTo[w] = (surr2 & 0x00ff);
+				//w++;
+				utf[3] = (surr2 & 0x00ff);
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+				
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[2], conversion, &fd));
+				
 			}
-
-			write_glyph(fill_glyph(glyph, (unsigned int*)writeTo, conversion, &fd));
+			
 		}
-		writeTo[w] = '\0';
+		//writeTo[w] = '\0';
 	}
 	else if (end == LITTLE){
-		writeTo[0] = 255;
-		writeTo[1] = 254;
+
+		/*Write the UTF-16 BOM depending on endian*/
+		read(fd, &utf[0], 1);
+		read(fd, &utf[1], 1);
+		read(fd, &utf[2], 1);
+		utf[0] = 255;
+		utf[1] = 254;
+		memset(glyph, 0, sizeof(Glyph));
+		write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+	
+
 		while ( read(fd, &utf[0], 1) == 1){
 
 			bytecount += 2;
 			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
-				writeTo[w] = utf[0];
-				w++;
-				writeTo[w] = '\0';
-				w++;
+				//writeTo[w] = utf[0];
+				//w++;
+				//writeTo[w] = '\0';
+				//w++;
+				utf[1] = '\0';
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+				
 			}
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
 				read(fd, &utf[1], 1);
 				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
-				writeTo[w] = (bits & 0x00ff);
-				w++;
-				writeTo[w] = (bits >> 8);
-				w++;
+				//writeTo[w] = (bits & 0x00ff);
+				//w++;
+				utf[0] = (bits & 0x00ff);
+				//writeTo[w] = (bits >> 8);
+				//w++;
+				utf[1] = (bits >> 8);
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+			
 			}
 			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
-				writeTo[w] = (bits & 0x00ff);
-				w++;
-				writeTo[w] = (bits >> 8);
-				w++;
+				//writeTo[w] = (bits & 0x00ff);
+				//w++;
+				utf[0] = (bits & 0x00ff);
+				//writeTo[w] = (bits >> 8);
+				//w++;
+				utf[1] = (bits >> 8);
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+			
 			}
 			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
 				read(fd, &utf[1], 1);
@@ -285,25 +348,33 @@ void convert(Glyph* glyph, endianness end){
 				int surr2 = bits & 0x3ff;
 				surr1 += 0xd800;
 				surr2 += 0xdc00;
-				writeTo[w] = (surr1 & 0x00ff);
+				//writeTo[w] = (surr1 & 0x00ff);
+				//w++;
+				utf[0] = (surr1 & 0x00ff);
+				//writeTo[w] = (surr1 >> 8);
+				//w++;
+				utf[1] = (surr1 >> 8);
+				//writeTo[w] = (surr2 & 0x00ff);
+				//w++;
+				utf[2] = (surr2 & 0x00ff);
+				//writeTo[w] = (surr2 >> 8);
+				//w++;
+				utf[3] = (surr2 >> 8);
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+			
+				memset(glyph, 0, sizeof(Glyph));
+				write_glyph(fill_glyph(glyph, &utf[2], conversion, &fd));
 				
-				w++;
-				writeTo[w] = (surr1 >> 8);
-				w++;
-				writeTo[w] = (surr2 & 0x00ff);
-				
-				w++;
-				writeTo[w] = (surr2 >> 8);
-				w++;
 			}
 
-			write_glyph(fill_glyph(glyph, (unsigned int*)writeTo, conversion, &fd));
+			//write_glyph(fill_glyph(glyph, utf, conversion, &fd));
 		}
-		writeTo[w] = '\0';
+		//writeTo[w] = '\0';
 	}
 
 	lseek(fd, 0, SEEK_SET);
-	write(fd, &writeTo[0], w+1);
+	/*write(fd, &writeTo[0], w+1);*/
 	close(fd);
 	free(writeTo);
 	return;
@@ -353,7 +424,7 @@ void write_glyph(Glyph*glyph) {
 		else write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
 	} else {
 		if(writeFlag == 1) fwrite(glyph->bytes, 1 ,sizeof(glyph->bytes), wr);
-		else write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
+		else write(STDOUT_FILENO, glyph->bytes, NON_SURROGATE_SIZE);
 		
 	}
 }
@@ -489,6 +560,7 @@ void print_verbosity(int verbos){
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
 		fprintf(stderr,"Hostmachine: %s\n", host);
 		fprintf(stderr,"Operating System: %s\n", os);
+		return;
 	}
 	else if (verbos > 1){
 		fprintf(stderr,"Input file size: %lf kB\n", kilo);
@@ -497,7 +569,7 @@ void print_verbosity(int verbos){
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
 		fprintf(stderr,"Hostmachine: %s\n", host);
 		fprintf(stderr,"Operating System: %s\n", os);
-
+		return;
 	}
 	else return;
 }
