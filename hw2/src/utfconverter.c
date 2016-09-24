@@ -189,10 +189,13 @@ void convert(Glyph* glyph, endianness end){
 	int bits;
 	unsigned int utf[4] = {0,0,0,0};	
 	int fd = open(filename, O_RDWR);
-	int fsize = lseek(fd, 0, SEEK_END);
-	//int w = 2; /* Write point for utf16 */
+	/*int fsize = lseek(fd, 0, SEEK_END);*/
+	
+	int surr1;
+	int surr2;
+
 	lseek(fd, 0, SEEK_SET); /*offset from start by 3 bytes for BOM */
-	unsigned char* writeTo = (unsigned char*)malloc(fsize*2);
+	/*unsigned char* writeTo = (unsigned char*)malloc(fsize*2);*/
 
 	
 	if (end == BIG){
@@ -214,10 +217,7 @@ void convert(Glyph* glyph, endianness end){
 			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
-				//writeTo[w] = '\0';
-				//w++;
-				//writeTo[w] = utf[0];
-				//w++;
+				
 				utf[1] = utf[0];
 				utf[0] = '\0';
 				memset(glyph, 0, sizeof(Glyph));
@@ -227,12 +227,11 @@ void convert(Glyph* glyph, endianness end){
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
 				read(fd, &utf[1], 1);
 				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
-				//writeTo[w] = (bits >> 8);
+				
 				utf[0] = (bits >> 8);
-				//w++;
+			
 				utf[1] = (bits & 0x00ff);
-				//writeTo[w] = (bits & 0x00ff);
-				//w++;
+			
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 				
@@ -241,10 +240,7 @@ void convert(Glyph* glyph, endianness end){
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
-				//writeTo[w] = (bits >> 8);
-				//w++;
-				//writeTo[w] = (bits & 0x00ff);
-				//w++;
+			
 				utf[0] = (bits >> 8);
 				utf[1] = (bits & 0x00ff);
 				memset(glyph, 0, sizeof(Glyph));
@@ -257,21 +253,17 @@ void convert(Glyph* glyph, endianness end){
 				read(fd, &utf[3], 1);
 				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
 				bits -= 65536; /* subtract 0x10000 */
-				int surr1 = bits >> 10;
-				int surr2 = bits & 0x3ff;
+				surr1 = bits >> 10;
+				surr2 = bits & 0x3ff;
 				surr1 += 0xd800;
 				surr2 += 0xdc00;
-				//writeTo[w] = (surr1 >> 8);
-				//w++;
+				
 				utf[0] = (surr1 >> 8);
-				//writeTo[w] = (surr1 & 0x00ff);
-				//w++;
+			
 				utf[1] = (surr1 & 0x00ff);
-				//writeTo[w] = (surr2 >> 8);
-				//w++;
+				
 				utf[2] = (surr2 >> 8);
-				//writeTo[w] = (surr2 & 0x00ff);
-				//w++;
+				
 				utf[3] = (surr2 & 0x00ff);
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
@@ -282,7 +274,7 @@ void convert(Glyph* glyph, endianness end){
 			}
 			
 		}
-		//writeTo[w] = '\0';
+		
 	}
 	else if (end == LITTLE){
 
@@ -302,10 +294,7 @@ void convert(Glyph* glyph, endianness end){
 			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
-				//writeTo[w] = utf[0];
-				//w++;
-				//writeTo[w] = '\0';
-				//w++;
+				
 				utf[1] = '\0';
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
@@ -314,11 +303,9 @@ void convert(Glyph* glyph, endianness end){
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
 				read(fd, &utf[1], 1);
 				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
-				//writeTo[w] = (bits & 0x00ff);
-				//w++;
+				
 				utf[0] = (bits & 0x00ff);
-				//writeTo[w] = (bits >> 8);
-				//w++;
+				
 				utf[1] = (bits >> 8);
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
@@ -328,11 +315,9 @@ void convert(Glyph* glyph, endianness end){
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
-				//writeTo[w] = (bits & 0x00ff);
-				//w++;
+				
 				utf[0] = (bits & 0x00ff);
-				//writeTo[w] = (bits >> 8);
-				//w++;
+			
 				utf[1] = (bits >> 8);
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
@@ -344,21 +329,17 @@ void convert(Glyph* glyph, endianness end){
 				read(fd, &utf[3], 1);
 				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
 				bits -= 65536; /* subtract 0x10000 */
-				int surr1 = bits >> 10;
-				int surr2 = bits & 0x3ff;
+				surr1 = bits >> 10;
+				surr2 = bits & 0x3ff;
 				surr1 += 0xd800;
 				surr2 += 0xdc00;
-				//writeTo[w] = (surr1 & 0x00ff);
-				//w++;
+				
 				utf[0] = (surr1 & 0x00ff);
-				//writeTo[w] = (surr1 >> 8);
-				//w++;
+			
 				utf[1] = (surr1 >> 8);
-				//writeTo[w] = (surr2 & 0x00ff);
-				//w++;
+				
 				utf[2] = (surr2 & 0x00ff);
-				//writeTo[w] = (surr2 >> 8);
-				//w++;
+				
 				utf[3] = (surr2 >> 8);
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
@@ -368,15 +349,15 @@ void convert(Glyph* glyph, endianness end){
 				
 			}
 
-			//write_glyph(fill_glyph(glyph, utf, conversion, &fd));
+			;
 		}
-		//writeTo[w] = '\0';
+	
 	}
 
 	lseek(fd, 0, SEEK_SET);
 	/*write(fd, &writeTo[0], w+1);*/
 	close(fd);
-	free(writeTo);
+	/*free(writeTo);*/
 	return;
 }
 
@@ -432,6 +413,7 @@ void write_glyph(Glyph*glyph) {
 void parse_args(int argc, char** argv) {
 	int option_index, c;
 	char* endian_convert;
+	int j;
 
 	/*struct.txt */
 	static struct option long_options[] = {
@@ -453,7 +435,7 @@ void parse_args(int argc, char** argv) {
 		switch(c){ 
 			case 'v':
 				verbos++;
-				int j;
+				
 				if (optarg != NULL) {
 					for(j = 0; optarg[j]!=0; j++){
 						if (optarg[j] == 'v') verbos++;
@@ -539,7 +521,7 @@ void print_verbosity(int verbos){
 	char *host;
 	char *os;
 	struct utsname opsys;
-	double kilo = (double)bytecount/1000;
+	float kilo = (float)bytecount/1000;
 
 	filepath = realpath(filename, actualpath);
 	uname(&opsys);
@@ -554,7 +536,7 @@ void print_verbosity(int verbos){
 
 	printf("Level of verbosity: %d\n", verbos);
 	if (verbos == 1){
-		fprintf(stderr,"Input file size: %lf kB\n", kilo);
+		fprintf(stderr,"Input file size: %f kB\n", kilo);
 		fprintf(stderr,"Input file path: %s\n", filepath);
 		fprintf(stderr,"Input file encoding: UTF-%s\n", endianSource);
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
@@ -563,7 +545,7 @@ void print_verbosity(int verbos){
 		return;
 	}
 	else if (verbos > 1){
-		fprintf(stderr,"Input file size: %lf kB\n", kilo);
+		fprintf(stderr,"Input file size: %f kB\n", kilo);
 		fprintf(stderr,"Input file path: %s\n", filepath);
 		fprintf(stderr,"Input file encoding: UTF-%s\n", endianSource);
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
