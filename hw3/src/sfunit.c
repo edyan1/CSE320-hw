@@ -41,22 +41,24 @@ Test(sf_memsuite, Check_next_prev_pointers_of_free_block_at_head_of_list, .init 
     cr_assert(freelist_head->prev == NULL);
 }
 
+
 Test(sf_memsuite, Coalesce_no_coalescing, .init = sf_mem_init, .fini = sf_mem_fini) {
-    int *x = sf_malloc(4);
-    int *y = sf_malloc(4);
+    void *x = sf_malloc(4);
+    void *y = sf_malloc(4);
     memset(y, 0xFF, 4);
     sf_free(x);
-    cr_assert(freelist_head == (void*)x-8);
-    sf_free_header *headofx = (sf_free_header*) x-8;
-    sf_footer *footofx = (sf_footer*) (x + headofx->header.block_size) - 8;
+    cr_assert(freelist_head == x-8);
+    sf_free_header *headofx = (sf_free_header*) (x-8);
+    sf_footer *footofx = (sf_footer*) (x - 8 + (headofx->header.block_size << 4)) - 8;
 
+    sf_blockprint((sf_free_header*)((void*)x-8));
     // All of the below should be true if there was no coalescing
     cr_assert(headofx->header.alloc == 0);
-    cr_assert(headofx->header.block_size == 32);
-    cr_assert(headofx->header.padding_size == 15);
+    cr_assert(headofx->header.block_size << 4 == 32);
+    cr_assert(headofx->header.padding_size == 12);
 
     cr_assert(footofx->alloc == 0);
-    cr_assert(footofx->block_size == 32);
+    cr_assert(footofx->block_size << 4 == 32);
 }
 
 /*
