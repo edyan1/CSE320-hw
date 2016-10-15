@@ -11,7 +11,7 @@
 
 sf_free_header* freelist_head = NULL;
 static info status;
-
+static int pagesCalled = 0;
 
 void *sf_malloc(size_t size){
 
@@ -33,6 +33,7 @@ void *sf_malloc(size_t size){
 
 			//call sf_sbrk
 			addr = sf_sbrk(size);
+			pagesCalled++;
 			status.external = 4096;
 
 			//if space is not evenly divisible by 16 (remainder of 8), then add 8
@@ -48,19 +49,67 @@ void *sf_malloc(size_t size){
 			freelist_head = (sf_free_header*)newFree;
 			freelist_head->next = NULL;
 			freelist_head->prev = NULL;
-
-
 		}
-		else {
-			//not the firt call of sf_malloc
-			addr = freelist_head;
-			freelist_head = freelist_head->next;
-		}
-
-		//allocation:
+		
+		//not the firt call of sf_malloc
+		//find the first free block that fits
+		addr = freelist_head;
+		freelist_head = freelist_head->next;
 
 		int payload = size;
 		int padding = (16 - payload%16);
+		int blockSize;
+		int sizeNeeded = payload + padding + 16;
+
+
+		sizeNeeded = 
+		blockSize = ((sf_header*)addr)->block_size;
+
+
+		while (blockSize > sizeNeeded){
+
+			if (freelist_head->next != NULL){ 
+				addr = freelist_head->next;
+				blockSize = ((sf_header*)addr)->block_size - 8;
+			}
+			else if (pagesCalled >= 4) {
+				errno = ENOMEM;
+				return NULL;
+			}
+			else { //allocate new page on heap
+				addr = sf_sbrk(size);
+				pagesCalled++;
+				status.external = 4096;
+
+				//if space is not evenly divisible by 16 (remainder of 8), then add 8
+				if ((int)addr % 16 == 8) addr += 8; 
+
+
+				//set the first node of freelist_head
+				sf_header* newFree = addr;
+				newFree->alloc = 0x0;
+				newFree->block_size = 4096;
+				newFree->unused_bits = 0;
+				newFree->padding_size = 0;
+
+				if (freelist_head == NULL){
+					freelist_head = (sf_free_header*)newFree;
+					freelist_head->next = NULL;
+					freelist_head->prev = NULL;
+				}
+				else if (freelist_head != NULL){
+					freelist_head->next = (sf_free_header*)newFree;
+					((sf_free_header*)newFree)->prev = freelist_head;
+					((sf_free_header*)newFree)->next = NULL;
+				}
+				break;
+			}
+		}
+
+
+		//allocation to a free node:
+		blockSize = ((sf_header*)addr)->block_size; //size of free block to be allocated to
+		
 		//if (payload%16 != 0) payload += (16-payload%16);
 		//header
 		sf_header* header = (sf_header*)addr;
@@ -74,7 +123,7 @@ void *sf_malloc(size_t size){
 		header->padding_size = padding;
 
 		//footer
-		sf_footer* foot = (sf_footer*)addr + 8 + payload + padding;
+		sf_footer* foot = (sf_footer*)(addr + 8 + payload + padding);
 		foot->alloc = 0x1;
 		foot->block_size = payload + padding +16;
 
@@ -82,6 +131,20 @@ void *sf_malloc(size_t size){
 		status.allocations += 1;
 		status.internal += (8 + 8 + padding); //header footer and padding
 
+		//set the rest of block as free block
+		//set free header
+		sf_free_header* nextFree = foot + 8;
+		(nextFree->header).alloc = 0;
+		(nextFree->header).block_size = blockSize - header->block_size;
+		(nextFree->header).unused_bits = 0;
+		(nextFree->header).padding_size = (nextFree->header).block_size%16;
+		//set free block footer
+		sf_footer* freeFoot = (nextFree->header).block_size - 8;
+		freeFoot->alloc = 0x0;
+		freeFoot->block_size = (nextFree->header).block_size;
+
+		nextFree->next = freelist_head->next;
+		freelist_head = nextFree;
 		//return address of first payload row
 		return header+8;
 	}
