@@ -19,11 +19,13 @@ Test(sf_memsuite, Malloc_an_Integer, .init = sf_mem_init, .fini = sf_mem_fini) {
 
 Test(sf_memsuite, Free_block_check_header_footer_values, .init = sf_mem_init, .fini = sf_mem_fini) {
     void *pointer = sf_malloc(sizeof(short));
+   
     sf_free(pointer);
-    pointer = pointer - 8;
+
+    pointer -= 8;
     sf_header *sfHeader = (sf_header *) pointer;
     cr_assert(sfHeader->alloc == 0, "Alloc bit in header is not 0!\n");
-    sf_footer *sfFooter = (sf_footer *) (pointer - 8 + (sfHeader->block_size << 4));
+    sf_footer *sfFooter = (sf_footer *) (pointer + (sfHeader->block_size << 4) -8);
     cr_assert(sfFooter->alloc == 0, "Alloc bit in the footer is not 0!\n");
 }
 
@@ -76,10 +78,34 @@ Test(sf_memsuite, Allocating_max_page_size, .init = sf_mem_init, .fini = sf_mem_
     cr_assert(y - x == 4096);
 }
 
-Test(sf_memsuite, Test2, .init = sf_mem_init, .fini = sf_mem_fini) {
-    cr_assert(1==1);
+Test(sf_memsuite, Coalescing_all_cases, .init = sf_mem_init, .fini = sf_mem_fini) {
+    void *a = sf_malloc(10);
+    void *b = sf_malloc(10);
+    void *c = sf_malloc(10);
+    void *d = sf_malloc(10);
+    void *e = sf_malloc(10);
+    void *f = sf_malloc(10);
+
+    //check if previous block free to coalesce
+    sf_free(a);
+    sf_free(b);
+    
+    a -= 8;
+    cr_assert(((sf_header*)(a))->block_size << 4 == 64 );
+
+    //check if next block free to coalesce
+    sf_free(e);
+    sf_free(d);
+  
+    sf_varprint(d);
+    cr_assert(((sf_header*)(d-8))->block_size << 4 == 64);
+
+    //check if both blocks free to coalesce
+
+    sf_free(c);
+    sf_free(f);
+    //the whole page should have been coalesced as 1 free block
+    cr_assert(((sf_header*)freelist_head)->block_size << 4 == 4096);
+
 }
 
-Test(sf_memsuite, Test3, .init = sf_mem_init, .fini = sf_mem_fini) {
-    cr_assert(1==1);
-}

@@ -169,28 +169,71 @@ void sf_free(void *ptr){
 	if (ptr == NULL) return;
 	if (ptr < heapStart) return;
 	if (ptr > heapEnd) return;
-
+	//if the previous 8 bytes isn't a header with allocated bit = 0x1, then return
+	if (((sf_header*)(ptr-8))->alloc != 0x1) return;
 	
 	else {
-	//set allocated bits to 0
-	sf_header* headAddr = ptr - 8;
-	headAddr->alloc = 0x0; //set header alloc bit to 0
-	headAddr->padding_size = 0x0; //set padding to 0
-	sf_footer* footAddr = ptr + (headAddr->block_size<<4) - 16; 
-	//address of payload + block size - header and footer sizes
-	footAddr->alloc = 0x0;	//set footer alloc bit to 0
+		//set allocated bits to 0
+		sf_header* headAddr = ptr - 8;
+		headAddr->alloc = 0x0; //set header alloc bit to 0
+		headAddr->padding_size = 0x0; //set padding to 0
+		sf_footer* footAddr = ptr + (headAddr->block_size<<4) - 16; 
+		//address of payload + block size - header and footer sizes
+		footAddr->alloc = 0x0;	//set footer alloc bit to 0
 
-	//add block back onto free list as the head (most recently freed)
-	void* temp = freelist_head;
-	freelist_head->prev = (sf_free_header*)headAddr;
-	freelist_head = (sf_free_header*)headAddr;
-	freelist_head->next = temp;
+		sf_footer* prevFoot;
+		sf_header* nextHead;
+		int coalesce = 0;
 
-	//update info status
-	status.frees += 1;
-	status.external += (headAddr->block_size<<4) - 16; //freed space equal to block size minus header and footer
-	status.internal -= headAddr->padding_size; //remove the padding from internal
-	status.internal -= 16; //remove the header and footer size from internal
+		//coalesce if necessary
+		if ((unsigned long)headAddr > (unsigned long)heapStart && (unsigned long)footAddr < (unsigned long)heapEnd) {
+			prevFoot = ptr - 16;
+			nextHead = ptr + (headAddr->block_size << 4) - 8;
+			coalesce = 1;
+		}
+	
+		if (coalesce) {
+		//only coalesced if free block is within the heap
+
+			//first, if there is a previous free block coalesce it
+			if (prevFoot->alloc == 0x0){
+				//newly freed footer stays in same location, prev foot and current header become free space
+				footAddr->block_size += prevFoot->block_size;
+				sf_header* prevHead = (void*)prevFoot - (prevFoot->block_size<<4) + 8;
+				prevHead->block_size = footAddr->block_size;
+				headAddr = prevHead;
+			}
+
+			//then, if there is a next free block coalesce it
+			if (nextHead->alloc == 0x0){
+				//header (either coalesced or not) stays same location, footer and next header become free space
+				sf_footer* nextFoot = (void*)nextHead + (nextHead->block_size<<4) - 8;
+				headAddr->block_size += nextHead->block_size;
+				
+				nextFoot->block_size = headAddr->block_size;
+				footAddr = nextFoot;
+			}
+		}
+
+		//update info status
+		status.frees += 1;
+		status.external += (headAddr->block_size<<4) - 16; //freed space equal to block size minus header and footer
+		status.internal -= headAddr->padding_size; //remove the padding from internal
+		status.internal -= 16; //remove the header and footer size from internal
+
+		//add block back onto free list as the head (most recently freed)
+		void* temp = freelist_head;
+
+		freelist_head = (sf_free_header*)headAddr;
+		freelist_head->next = temp;
+		//check if free.next was coalesced, if so, remove and set as next head
+		if (freelist_head->next != NULL && (unsigned long)freelist_head->next == (unsigned long)nextHead){
+			void* temp2 = freelist_head->next->next;
+			freelist_head->next = temp2;
+		}
+		freelist_head->next->prev = freelist_head;
+
+
 	}
 	
 }
@@ -200,6 +243,14 @@ void *sf_realloc(void *ptr, size_t size){
 		errno = EINVAL;
   		return NULL;
   	}
+  	if (ptr < heapStart){
+  		errno = EINVAL;
+  		return NULL;
+  	}
+	if (ptr > heapEnd){
+  		errno = EINVAL;
+  		return NULL;
+  	}  	
   	if (size == 0){
   		errno = EINVAL;
   		return NULL;
