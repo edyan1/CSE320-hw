@@ -109,3 +109,22 @@ Test(sf_memsuite, Coalescing_all_cases, .init = sf_mem_init, .fini = sf_mem_fini
 
 }
 
+Test(sf_memsuite, Realloc_to_smaller, .init = sf_mem_init, .fini = sf_mem_fini) {
+    void *g = sf_malloc(40);
+    g = sf_realloc(g,4);
+    g -= 8;
+    //assert block was realloced correctly
+    cr_assert(((sf_header*)(g))->block_size << 4 == 32);
+    cr_assert(((sf_header*)(g))->padding_size == 12);
+
+}
+
+Test(sf_memsuite, Realloc_to_larger, .init = sf_mem_init, .fini = sf_mem_fini) {
+    void *h = sf_malloc(40);
+    h = sf_realloc(h,400);
+    h -=8;
+    //assert block was realloced correctly
+    cr_assert(((sf_header*)(h))->block_size << 4 == 416);
+    cr_assert(((sf_header*)(h))->padding_size == 0);
+
+}

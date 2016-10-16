@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 #include "sfmm.h"
 
 /**
@@ -213,6 +214,8 @@ void sf_free(void *ptr){
 				nextFoot->block_size = headAddr->block_size;
 				footAddr = nextFoot;
 			}
+
+			status.coalesce++;
 		}
 
 		//update info status
@@ -228,12 +231,14 @@ void sf_free(void *ptr){
 		freelist_head->next = temp;
 		//check if free.next was coalesced, if so, remove and set as next head
 		if (freelist_head->next != NULL && (unsigned long)freelist_head->next == (unsigned long)nextHead){
-			void* temp2 = freelist_head->next->next;
+			void* temp2 = (freelist_head->next)->next;
 			freelist_head->next = temp2;
 		}
-		freelist_head->next->prev = freelist_head;
+		(freelist_head->next)->prev = freelist_head;
 
-
+		freelist_head->prev = NULL;
+		//make sure next in freelist head is not itself
+		if(freelist_head == freelist_head->next) freelist_head->next = NULL;
 	}
 	
 }
@@ -255,9 +260,35 @@ void *sf_realloc(void *ptr, size_t size){
   		errno = EINVAL;
   		return NULL;
   	}
+  	if (size > 16368){
+  		errno = EINVAL;
+  		return NULL;
+  	}
+  	if (((sf_header*)(ptr-8))->alloc != 0x1) {
+  		errno = EINVAL;
+  		return NULL;
+  	}
 
-  	void* addr = ptr;
+  	void* addr = ptr; 
 
+	//get payload (and padding) size which is the block size of the block being realloc'd minus 16
+	int payPadSize = (((sf_header*)(ptr-8))->block_size << 4) - 16;
+
+
+  	//if sf_realloc size is bigger than previous sf_malloc size:
+  	if(size > payPadSize){
+	  	void* newBlock = sf_malloc(size);
+	  	addr = memmove(newBlock, ptr, payPadSize);
+	  	sf_free(ptr);
+	}
+
+	if(size < payPadSize){
+		sf_free(ptr);
+		void* newBlock = sf_malloc(size);
+		addr = memmove(newBlock, ptr, size);
+	}
+
+	
   	return addr;
 }
 
