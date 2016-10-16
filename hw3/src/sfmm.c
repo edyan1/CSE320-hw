@@ -69,7 +69,7 @@ void *sf_malloc(size_t size){
 		blockSize = ((sf_header*)addr)->block_size<<4;
 
 
-		while ((blockSize-8) < sizeNeeded){
+		while (blockSize < sizeNeeded){
 
 			
 			if (pagesCalled >= 4) {
@@ -130,13 +130,14 @@ void *sf_malloc(size_t size){
 		header->padding_size = padding;
 
 		//footer
-		sf_footer* foot = (sf_footer*)(addr+ 8 + payload + padding);
+		sf_footer* foot = addr + 8 + payload + padding;
 		foot->alloc = 0x1;
 		foot->block_size = (payload + padding +16)>>4;
 
 		//update info status
 		status.allocations += 1;
 		status.internal += (8 + 8 + padding); //header footer and padding
+
 
 		//set the rest of block as free block
 		//set free header
@@ -145,15 +146,19 @@ void *sf_malloc(size_t size){
 		nextFree->block_size = (blockSize - ((header->block_size)<<4))>>4;
 		nextFree->unused_bits = 0;
 		nextFree->padding_size = (nextFree->block_size<<4)%16;
-		//set free block footer
+
+		//set free block footer, unless blocksize is 0
+		if (nextFree->block_size != 0) {
 		sf_footer* freeFoot = (void*)(foot) + (nextFree->block_size<<4);
 		freeFoot->alloc = 0;
 		freeFoot->block_size = nextFree->block_size;
+		}
+		if (nextFree->block_size != 0){
+			if (freelist_head != NULL)
+				((sf_free_header*)nextFree)->next = freelist_head;
 
-		if (freelist_head != NULL)
-			((sf_free_header*)nextFree)->next = freelist_head;
-
-		freelist_head = (sf_free_header*)nextFree;
+			freelist_head = (sf_free_header*)nextFree;
+		}	
 		//return address of first payload row
 		return header+1;
 	}
@@ -165,7 +170,7 @@ void sf_free(void *ptr){
 	if (ptr < heapStart) return;
 	if (ptr > heapEnd) return;
 
-
+	
 	else {
 	//set allocated bits to 0
 	sf_header* headAddr = ptr - 8;
@@ -191,7 +196,18 @@ void sf_free(void *ptr){
 }
 
 void *sf_realloc(void *ptr, size_t size){
-  return NULL;
+	if (ptr == NULL){
+		errno = EINVAL;
+  		return NULL;
+  	}
+  	if (size == 0){
+  		errno = EINVAL;
+  		return NULL;
+  	}
+
+  	void* addr = ptr;
+
+  	return addr;
 }
 
 int sf_info(info* meminfo){

@@ -55,7 +55,7 @@ Test(sf_memsuite, Coalesce_no_coalescing, .init = sf_mem_init, .fini = sf_mem_fi
     // All of the below should be true if there was no coalescing
     cr_assert(headofx->header.alloc == 0);
     cr_assert(headofx->header.block_size << 4 == 32);
-    cr_assert(headofx->header.padding_size == 12);
+    cr_assert(headofx->header.padding_size == 0);
 
     cr_assert(footofx->alloc == 0);
     cr_assert(footofx->block_size << 4 == 32);
@@ -67,3 +67,19 @@ Test(sf_memsuite, Coalesce_no_coalescing, .init = sf_mem_init, .fini = sf_mem_fi
 // DO NOT DELETE THESE COMMENTS
 //############################################
 */
+
+Test(sf_memsuite, Allocating_max_page_size, .init = sf_mem_init, .fini = sf_mem_fini) {
+    void *x = sf_malloc(4070);
+    void *y = sf_malloc(4070);
+    sf_varprint(x);
+    sf_varprint(y);
+    cr_assert(y - x == 4096);
+}
+
+Test(sf_memsuite, Test2, .init = sf_mem_init, .fini = sf_mem_fini) {
+    cr_assert(1==1);
+}
+
+Test(sf_memsuite, Test3, .init = sf_mem_init, .fini = sf_mem_fini) {
+    cr_assert(1==1);
+}
