@@ -15,6 +15,10 @@ endianness source;
 endianness conversion;
 static int verbos;
 static int bytecount;
+static int ascii;
+static float surro;
+static int numGlyphs;
+
 FILE* wr;
 int writeFlag;
 
@@ -28,16 +32,27 @@ int main(int argc, char** argv)
 	Glyph* glyph = malloc(sizeof(Glyph)); 
 	filename = (char*) malloc(100);
 	verbos = 0;
+	ascii = 0;
+	surro = 0;
+	numGlyphs = 0;
+
 	fileout = (char*) malloc(100);
 
 	writeFlag = 0;
 	/* After calling parse_args(), filename and conversion should be set. */
 	parse_args(argc, argv);
 	
-	if( (fd = open(filename, O_RDWR)) == 0) EXIT_FAILURE;
+	if( (fd = open(filename, O_RDWR)) == 0) {
+		fprintf(stderr, "Error opening input file");
+		exit(EXIT_FAILURE);
+	}
+
 	if (writeFlag == 1)	{
 		wr = fopen(fileout, "a");
-		if (wr == NULL) EXIT_FAILURE;
+		if (wr == NULL) {
+			fprintf(stderr, "Error opening output file");
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	if(fd < 0) {
@@ -45,6 +60,12 @@ int main(int argc, char** argv)
 		quit_converter(fd); 
 		exit(EXIT_FAILURE);
 	}
+
+	if (strcmp(filename, fileout) == 0) {
+		fprintf(stderr, "Input file and output file are the same file.\n");
+		quit_converter(fd);
+		exit(EXIT_FAILURE);
+	} 
 	/* Handle BOM bytes for UTF16 specially. 
          * Read our values into the first and second elements. */
 	if((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1){ 
@@ -104,6 +125,7 @@ int main(int argc, char** argv)
 			bytecount += 2;
 			memset(glyph, 0, sizeof(Glyph));
 			write_glyph(fill_glyph(glyph, buf, source, &fd));
+			numGlyphs++;
 		}
 		printf("\n");
 		
@@ -113,6 +135,7 @@ int main(int argc, char** argv)
 		free(filename);
 		free(fileout);
 		free(glyph);
+		if (writeFlag) fclose(wr);
 		quit_converter(NO_FD);
 		exit(EXIT_SUCCESS);
 	}
@@ -136,28 +159,16 @@ int main(int argc, char** argv)
 	if (source != UTF8) {
 		while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
 			bytecount += 2;
+			if(source == LITTLE && buf[0] <= 0x7f && buf[1]==0x00){
+				ascii++;
+			}
+			if(source == BIG && buf[1] <= 0x7f && buf[0]==0x00){
+				ascii++;
+			}
+			if(source == LITTLE && buf[1] >= 0xd8) surro+=0.5;
+			if(source == BIG && buf[0] >= 0xd8) surro+=0.5;
 			memset(glyph, 0, sizeof(Glyph));
-
-			/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
-			 Memory write failed, recover from it: */
-		    /*if(memset_return == NULL){
-			     tweak write permission on heap memory. 
-			    __asm__ volatile (
-			    	"movl $8, %esi\n"
-			        "movl $.LC0, %edi\n"
-			        "movl $0, %eax");
-			     Now make the request again. */
-			   /* memset(glyph, 0, sizeof(Glyph)+1);
-		    } */
-
-			/*swap the position of the bites 
-			lseek(fd, -2, SEEK_CUR);
-			write(fd, &buf[1], 1);
-			write(fd, &buf[0], 1); */
-
 			write_glyph(swap_endianness(fill_glyph(glyph, buf, source, &fd)));
-			
-	    
 	    }
 	}
 
@@ -168,12 +179,14 @@ int main(int argc, char** argv)
 	free(fileout);
 	free(glyph);
 	close(fd);
-	fclose(wr);
+
 	quit_converter(fd);
 	return EXIT_SUCCESS;
 }
 
 Glyph* swap_endianness(Glyph* glyph) {
+
+	numGlyphs++;
 	/* Use XOR to be more efficient with how we swap values. */
 	glyph->bytes[0] ^= glyph->bytes[1];
 	glyph->bytes[1] ^= glyph->bytes[0];
@@ -217,10 +230,11 @@ void convert(Glyph* glyph, endianness end){
 		while ( read(fd, &utf[0], 1) == 1){
 
 			bytecount += 2;
+			numGlyphs++;
 			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
-				
+				ascii++;
 				utf[1] = utf[0];
 				utf[0] = '\0';
 				memset(glyph, 0, sizeof(Glyph));
@@ -251,6 +265,8 @@ void convert(Glyph* glyph, endianness end){
 				
 			}
 			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
+				surro++;
+
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				read(fd, &utf[3], 1);
@@ -295,12 +311,14 @@ void convert(Glyph* glyph, endianness end){
 
 			bytecount += 2;
 			memset(glyph, 0, sizeof(Glyph));
+			numGlyphs++;
 		
-			if (utf[0] < 0xc2){
-				
+			if (utf[0] < 0xc2){ //is an ascii character
+			
 				utf[1] = '\0';
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
+				ascii++;
 				
 			}
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
@@ -327,6 +345,8 @@ void convert(Glyph* glyph, endianness end){
 			
 			}
 			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
+				surro++;
+
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				read(fd, &utf[3], 1);
@@ -403,7 +423,9 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 }
 
 void write_glyph(Glyph*glyph) {
+	
 	if(glyph->surrogate){
+		
 		if(writeFlag == 1) fwrite(glyph->bytes, 1 ,sizeof(glyph->bytes), wr);
 		else write(STDOUT_FILENO, glyph->bytes, SURROGATE_SIZE);
 	} else {
@@ -542,6 +564,8 @@ void print_verbosity(int verbos){
 	if (conversion == BIG) endianConverted = "16BE";
 	if (conversion == LITTLE) endianConverted = "16LE";
 
+	if (numGlyphs == 0) numGlyphs = 1;
+
 	printf("Level of verbosity: %d\n", verbos);
 	if (verbos == 1){
 		fprintf(stderr,"Input file size: %f kB\n", kilo);
@@ -559,12 +583,12 @@ void print_verbosity(int verbos){
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
 		fprintf(stderr,"Hostmachine: %s\n", host);
 		fprintf(stderr,"Operating System: %s\n", os);
-		fprintf(stderr,"Reading: real=%f, user=%f, sys=%f",1.0,1.0,1.0);
-		fprintf(stderr,"Converting: real=%f, user=%f, sys=%f",1.0,1.0,1.0);
-		fprintf(stderr,"Writing: real=%f, user=%f, sys=%f",1.0,1.0,1.0);
-		fprintf(stderr, "ASCII: %d%%", 67);
-		fprintf(stderr, "Surrogates: %d%%", 5);
-		fprintf(stderr, "Glyphs: %d", 640);
+		fprintf(stderr,"Reading: real=%f, user=%f, sys=%f\n",1.0,1.0,1.0);
+		fprintf(stderr,"Converting: real=%f, user=%f, sys=%f\n",1.0,1.0,1.0);
+		fprintf(stderr,"Writing: real=%f, user=%f, sys=%f\n",1.0,1.0,1.0);
+		fprintf(stderr, "ASCII: %.2f%%\n", (float)((float)ascii/(float)numGlyphs)*100);
+		fprintf(stderr, "Surrogates: %.2f%%\n", (float)(surro/(float)numGlyphs)*100);
+		fprintf(stderr, "Glyphs: %d\n", numGlyphs);
 		return;
 	}
 	else return;
