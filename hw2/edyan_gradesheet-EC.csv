@@ -1,0 +1,20 @@
+Testcase,Points,Notes,Description
+LINUX TEST CASES
+"ASCII.txt: Program failed to convert UTF-16LE to UTF-8 and had a valid return code. - 0.625
+",F
+"Nonsurrogates.txt: Program failed to convert UTF-16LE to UTF-8 and had a valid return code. - 0.625
+",F
+"Mixed.txt: Program failed to convert UTF-16LE to UTF-8 and had a valid return code. - 0.625
+",F
+"ASCII.txt: Program failed to convert UTF-16BE to UTF-8 and had a valid return code. - 0.625
+",F
+"Nonsurrogates.txt: Program failed to convert UTF-16BE to UTF-8 and had a valid return code. - 0.625
+",F
+"Mixed.txt: Program failed to convert UTF-16BE to UTF-8 and had a valid return code. - 0.625
+",F
+SPARKY TEST CASES
+"Program Failed to Compile - 0
+",F
+"Total Grade: 0
+",P
+Total Grade:,EC Failure,,
