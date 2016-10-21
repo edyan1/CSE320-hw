@@ -17,6 +17,8 @@ build/utfconverter.o: $(SRC)
 
 .PHONY: clean
 
+debug: all
+
 clean:
 	rm -rf bin build
 

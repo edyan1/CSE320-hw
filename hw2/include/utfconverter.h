@@ -40,7 +40,7 @@ typedef struct Glyph {
 extern char* filename;
 
 /** The usage statement. */
-const char* USAGE = "Command line utility for converting files from UTF-16LE to UTF-16BE or vice versa.\n\nUsage:  ./utf [-h|--help] -u OUT_ENC | --UTF=OUT_ENC IN_FILE\n\n\tOption arguments:\n\t\t-h, --help\tDisplays this usage statement.\n\t\t-v, -vv\t\tToggles the verbosity of  the program to level 1 or 2.\n\n\tMandatory argument:\n\t\t-u OUT_ENC, --UTF=OUT_ENC\tSets the output encoding.\n\t\t\t\t\t\tValid values for OUT_ENC: 16LE, 16BE\n\n\tPositional Arguments:\n\t\tIN_FILE\t\tThe file to convert.\n";
+const char* USAGE = "Command line utility for converting files from UTF-16LE to UTF-16BE or vice versa.\n\nUsage:  ./utf [-h|--help] -u OUT_ENC | --UTF=OUT_ENC IN_FILE [OUT_FILE]\n\n    Option arguments:\n\t-h, --help\tDisplays this usage statement.\n\t-v, -vv\t\tToggles the verbosity of  the program to level 1 or 2.\n\n    Mandatory argument:\n\t-u OUT_ENC, --UTF=OUT_ENC\tSets the output encoding.\n\t\t\t\t\tValid values for OUT_ENC: 16LE, 16BE\n\n    Positional Arguments:\n\tIN_FILE\t\tThe file to convert.\n\t[OUT_FILE]\tOutput file name. If not present, defaults to stdout.\n";
 
 /** Which endianness to convert to. */
 extern endianness conversion;

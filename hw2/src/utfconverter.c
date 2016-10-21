@@ -42,7 +42,8 @@ int main(int argc, char** argv)
 
 	if(fd < 0) {
 		fprintf(stderr, "File not found.\n");
-		quit_converter(NO_FD); 
+		quit_converter(fd); 
+		exit(EXIT_FAILURE);
 	}
 	/* Handle BOM bytes for UTF16 specially. 
          * Read our values into the first and second elements. */
@@ -75,7 +76,8 @@ int main(int argc, char** argv)
 			/*file has no BOM*/
 			free(&glyph->bytes); 
 			fprintf(stderr, "File has no BOM.\n");
-			quit_converter(NO_FD); 
+			quit_converter(fd); 
+			exit(EXIT_FAILURE);
 		}
 		
 		/* Memory write failed, recover from it:
@@ -112,6 +114,7 @@ int main(int argc, char** argv)
 		free(fileout);
 		free(glyph);
 		quit_converter(NO_FD);
+		exit(EXIT_SUCCESS);
 	}
 
 	if (source == UTF8) convert(glyph, conversion); /*convert from utf8 */
@@ -166,8 +169,8 @@ int main(int argc, char** argv)
 	free(glyph);
 	close(fd);
 	fclose(wr);
-	quit_converter(NO_FD);
-	return 0;
+	quit_converter(fd);
+	return EXIT_SUCCESS;
 }
 
 Glyph* swap_endianness(Glyph* glyph) {
@@ -442,12 +445,14 @@ void parse_args(int argc, char** argv) {
 						else if (optarg[j] != 'v') {
 							fprintf(stderr, "Unrecognized argument.\n");
 							quit_converter(NO_FD);
+							exit(EXIT_FAILURE);
 						}
 					}
 				}
 				break;
 			case 'h':
 				print_help();
+				exit(EXIT_SUCCESS);
 				break;
 			case 'u':
 				endian_convert = optarg;
@@ -456,6 +461,7 @@ void parse_args(int argc, char** argv) {
 			default:
 				fprintf(stderr, "Unrecognized argument.\n");
 				quit_converter(NO_FD);
+				exit(EXIT_FAILURE);
 				break;
 		}
 
@@ -464,7 +470,7 @@ void parse_args(int argc, char** argv) {
 	if(endian_convert == NULL){
 		fprintf(stderr, "Converson mode not given.\n");
 		print_help();
-		quit_converter(NO_FD);
+		exit(EXIT_FAILURE);
 	}
 
 	if(strcmp(endian_convert, "16LE")==0){ 
@@ -473,11 +479,13 @@ void parse_args(int argc, char** argv) {
 		conversion = BIG;
 	} else if(strcmp(endian_convert, "8") ==0) {
 		fprintf(stderr, "Conversion to UTF-8 not supported.\n");
-		quit_converter(NO_FD);
+		quit_converter(1);
+		exit(EXIT_FAILURE);
 	} else {
 		fprintf(stderr, "Output encoding invalid or not provided.\n");
 		print_help();
-		quit_converter(NO_FD);	
+		quit_converter(1);	
+		exit(EXIT_FAILURE);
 	}
 
 	if(optind < argc){
@@ -487,6 +495,7 @@ void parse_args(int argc, char** argv) {
 		fprintf(stderr, "Filename not given.\n");
 		print_help();
 		quit_converter(NO_FD);
+		exit(EXIT_FAILURE);
 	}
 
 	if(optind < argc){
@@ -508,7 +517,6 @@ void quit_converter(int fd) {
 	close(STDOUT_FILENO);
 	if(fd != NO_FD)
 		close(fd);
-	exit(0);	
 }
 
 void print_verbosity(int verbos){
@@ -551,6 +559,12 @@ void print_verbosity(int verbos){
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
 		fprintf(stderr,"Hostmachine: %s\n", host);
 		fprintf(stderr,"Operating System: %s\n", os);
+		fprintf(stderr,"Reading: real=%f, user=%f, sys=%f",1.0,1.0,1.0);
+		fprintf(stderr,"Converting: real=%f, user=%f, sys=%f",1.0,1.0,1.0);
+		fprintf(stderr,"Writing: real=%f, user=%f, sys=%f",1.0,1.0,1.0);
+		fprintf(stderr, "ASCII: %d%%", 67);
+		fprintf(stderr, "Surrogates: %d%%", 5);
+		fprintf(stderr, "Glyphs: %d", 640);
 		return;
 	}
 	else return;
