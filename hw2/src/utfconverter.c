@@ -31,17 +31,24 @@ static int writeUser;
 static int writeSys;
 static int totalClock;
 
+static int systemEndianness;
+
 FILE* wr;
 int writeFlag;
 
 int main(int argc, char** argv)
 {
-
+	char* end;
+	
+	Glyph* glyph;
 	int fd; 
 	unsigned int buf[2] = {0, 0};
 	int rv; 
 	
-	Glyph* glyph = malloc(sizeof(Glyph)); 
+	systemEndianness = BIG;
+	end = (char*)&systemEndianness;
+	if (end != 0) systemEndianness = LITTLE;
+
 	filename = (char*) malloc(100);
 	verbos = 0;
 	ascii = 0;
@@ -91,6 +98,8 @@ int main(int argc, char** argv)
 	} 
 	/* Handle BOM bytes for UTF16 specially. 
          * Read our values into the first and second elements. */
+	glyph = malloc(sizeof(Glyph)); 	
+
 	if((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1){ 
 		totalClock = clock();
 
@@ -160,11 +169,8 @@ int main(int argc, char** argv)
 	if (source == UTF8) convert(glyph, conversion); /*convert from utf8 */
 
 	else if (source != conversion && source != UTF8) {
-		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le
-		lseek(fd, -2, SEEK_CUR);
-		write(fd, &buf[1], 1);
-		write(fd, &buf[0], 1);
-		*/
+		/*if source and conversion aren't the same, then swap the BOM in the file. only works between utf16 be and le*/
+		
 		totalClock = clock();
 		/*write the BOM to the new output file*/
 		if(writeFlag == 1){		
@@ -173,7 +179,7 @@ int main(int argc, char** argv)
 		}
 		writeSys = clock() - totalClock;
 		writeReal += writeSys;
-
+		numGlyphs++;
 	}
 	/* Now deal with the rest of the bytes.*/
 	if (source != UTF8) {
@@ -188,8 +194,14 @@ int main(int argc, char** argv)
 			if(source == BIG && buf[1] <= 0x7f && buf[0]==0x00){
 				ascii++;
 			}
-			if(source == LITTLE && buf[1] >= 0xd8) surro+=0.5;
-			if(source == BIG && buf[0] >= 0xd8) surro+=0.5;
+			if(source == LITTLE && buf[1] >= 0xd8) {
+				surro+=0.5;
+				
+			}
+			if(source == BIG && buf[0] >= 0xd8) {
+				surro+=0.5;
+				
+			}
 			memset(glyph, 0, sizeof(Glyph));
 			write_glyph(swap_endianness(fill_glyph(glyph, buf, source, &fd)));
 
@@ -256,7 +268,7 @@ void convert(Glyph* glyph, endianness end){
 		utf[1] = 255;
 		memset(glyph, 0, sizeof(Glyph));
 		write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
-	
+		numGlyphs++;
 		totalClock = clock();
 		while ( read(fd, &utf[0], 1) == 1){
 			readSys += clock() - totalClock;
@@ -359,7 +371,7 @@ void convert(Glyph* glyph, endianness end){
 		utf[1] = 254;
 		memset(glyph, 0, sizeof(Glyph));
 		write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
-	
+		numGlyphs++;
 		totalClock = clock();
 
 		while ( read(fd, &utf[0], 1) == 1){
@@ -368,7 +380,7 @@ void convert(Glyph* glyph, endianness end){
 			memset(glyph, 0, sizeof(Glyph));
 			numGlyphs++;
 		
-			if (utf[0] < 0xc2){ //is an ascii character
+			if (utf[0] < 0xc2){ /*is an ascii character*/
 			
 				utf[1] = '\0';
 				memset(glyph, 0, sizeof(Glyph));
@@ -458,9 +470,9 @@ void convert(Glyph* glyph, endianness end){
 
 Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd) 
 {
-	totalClock = clock();
+	
 	unsigned int bits = 0; 
-
+	totalClock = clock();
 	glyph->bytes[0] = bytes[0];
 	glyph->bytes[1] = bytes[1];
 
@@ -548,6 +560,7 @@ void parse_args(int argc, char** argv) {
 				}
 				break;
 			case 'h':
+
 				print_help();
 				exit(EXIT_SUCCESS);
 				break;
@@ -604,7 +617,10 @@ void parse_args(int argc, char** argv) {
 
 void print_help(void) {
 
-	printf("%s", USAGE);
+	printf("%s%s", USAGE, USAGE2);
+	free(filename);
+	free(fileout);
+	
 	/*quit_converter(NO_FD);*/
 }
 
@@ -645,6 +661,7 @@ void print_verbosity(int verbos){
 	if (conversion == LITTLE) endianConverted = "16LE";
 
 	if (numGlyphs == 0) numGlyphs = 1;
+	else numGlyphs -= surro;
 
 	printf("Level of verbosity: %d\n", verbos);
 	if (verbos == 1){
