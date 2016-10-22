@@ -31,23 +31,18 @@ static int writeUser;
 static int writeSys;
 static int totalClock;
 
-static int systemEndianness;
-
 FILE* wr;
 int writeFlag;
 
 int main(int argc, char** argv)
 {
-	char* end;
-	
+
 	Glyph* glyph;
 	int fd; 
 	unsigned int buf[2] = {0, 0};
 	int rv; 
 	
-	systemEndianness = BIG;
-	end = (char*)&systemEndianness;
-	if (end != 0) systemEndianness = LITTLE;
+
 
 	filename = (char*) malloc(100);
 	verbos = 0;
@@ -107,22 +102,36 @@ int main(int argc, char** argv)
 		memset(glyph, 0, sizeof(Glyph));
 		
 		/* Check for both endianness of the system*/
-		if((buf[0] == 0xfe && buf[1] == 0xff) || (buf[0] == 0xfe000000 && buf[1] == 0xff000000)  ){
-			/*file is big endian*/
-			source = BIG; 
-		} else if((buf[0] == 0xff && buf[1] == 0xfe) || (buf[0] == 0xff000000 && buf[1] == 0xfe000000)){
-			/*file is little endian*/
-			source = LITTLE;
-		} else if((buf[0] == 0xef && buf[1] == 0xbb) || (buf[0] == 0xef000000 && buf[1]==0xbb000000)){
-			/*file is utf-8*/
-			source = UTF8;
-		} else {
-			/*file has no BOM*/
-			free(&glyph->bytes); 
-			fprintf(stderr, "File has no BOM.\n");
-			quit_converter(fd); 
-			exit(EXIT_FAILURE);
-		}
+
+		
+			if((buf[0] == 254 && buf[1] == 255) ){
+				/*file is big endian*/
+				source = BIG; 
+			} else if((buf[0] ==255 && buf[1] == 254) ){
+				/*file is little endian*/
+				source = LITTLE;
+			} else if((buf[0] == 239 && buf[1] == 187) ){
+				/*file is utf-8*/
+				source = UTF8;
+			} 
+
+			else if((buf[0] == 0xfe000000 && buf[1] == 0xff000000) ){
+				/*file is big endian*/
+				source = BIG; 
+			} else if((buf[0] == 0xff000000 && buf[1] == 0xfe000000) ){
+				/*file is little endian*/
+				source = LITTLE;
+			} else if((buf[0] == 0xef000000 && buf[1] == 0xbb000000) ){
+				/*file is utf-8*/
+				source = UTF8;
+			} else {
+				/*file has no BOM*/
+				free(&glyph->bytes); 
+				fprintf(stderr, "File has no BOM.\n");
+				quit_converter(fd); 
+				exit(EXIT_FAILURE);
+			}
+		
 		
 
 		readUser += clock() - totalClock;
@@ -188,20 +197,23 @@ int main(int argc, char** argv)
 			readSys += clock() - totalClock;
 
 			bytecount += 2;
-			if(source == LITTLE && buf[0] <= 0x7f && buf[1]==0x00){
-				ascii++;
-			}
-			if(source == BIG && buf[1] <= 0x7f && buf[0]==0x00){
-				ascii++;
-			}
-			if(source == LITTLE && buf[1] >= 0xd8) {
-				surro+=0.5;
-				
-			}
-			if(source == BIG && buf[0] >= 0xd8) {
-				surro+=0.5;
-				
-			}
+		
+			if(source == LITTLE && buf[0] <= 127 && buf[1]==0){
+					ascii++;
+				}
+				if(source == BIG && buf[1] <= 127 && buf[0]==0){
+					ascii++;
+				}
+				if(source == LITTLE && buf[1] >= 216) {
+					surro+=0.5;
+					
+				}
+				if(source == BIG && buf[0] >= 216) {
+					surro+=0.5;
+					
+				}
+			
+
 			memset(glyph, 0, sizeof(Glyph));
 			write_glyph(swap_endianness(fill_glyph(glyph, buf, source, &fd)));
 
@@ -277,7 +289,7 @@ void convert(Glyph* glyph, endianness end){
 			numGlyphs++;
 			memset(glyph, 0, sizeof(Glyph));
 		
-			if (utf[0] < 0xc2){
+			if (utf[0] < 194){
 				totalClock = clock();
 				ascii++;
 				utf[1] = utf[0];
@@ -288,41 +300,41 @@ void convert(Glyph* glyph, endianness end){
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 		
 			}
-			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
+			else if (utf[0] >= 194 && utf[0] < 224) {
 				totalClock = clock();
 				read(fd, &utf[1], 1);
 				readSys += clock() - totalClock;
 				
 				totalClock = clock();
-				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
+				bits = ((utf[0] & 31) << 6) + (utf[1] & 63);
 				
 				utf[0] = (bits >> 8);
 			
-				utf[1] = (bits & 0x00ff);
+				utf[1] = (bits & 255);
 				writeUser += clock()-totalClock;
 			
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 				
 			}
-			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
+			else if (utf[0] >= 224 && utf[0] < 240) {
 				totalClock = clock();
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				readSys += clock() - totalClock;
 			
 				totalClock = clock();
-				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
+				bits = ((utf[0] & 15) << 12) + ((utf[1] & 63) << 6) +(utf[2] & 63);
 			
 				utf[0] = (bits >> 8);
-				utf[1] = (bits & 0x00ff);
+				utf[1] = (bits & 255);
 				writeUser+= clock()-totalClock;
 	
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 				
 			}
-			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
+			else if (utf[0] >= 240) { /*surrogate pairs*/
 				surro++;
 				totalClock = clock();
 				read(fd, &utf[1], 1);
@@ -331,20 +343,20 @@ void convert(Glyph* glyph, endianness end){
 				readSys += clock() - totalClock;
 			
 				totalClock = clock();
-				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
+				bits = ((utf[0] & 8) << 18) + ((utf[1] & 63) <<12) + ((utf[2] & 63) <<6) + (utf[3] & 63);
 				bits -= 65536; /* subtract 0x10000 */
 				surr1 = bits >> 10;
-				surr2 = bits & 0x3ff;
-				surr1 += 0xd800;
-				surr2 += 0xdc00;
+				surr2 = bits & 1023;
+				surr1 += 55296;
+				surr2 += 56320;
 				
 				utf[0] = (surr1 >> 8);
 			
-				utf[1] = (surr1 & 0x00ff);
+				utf[1] = (surr1 & 255);
 				
 				utf[2] = (surr2 >> 8);
 				
-				utf[3] = (surr2 & 0x00ff);
+				utf[3] = (surr2 & 255);
 				writeUser += clock() - totalClock;
 			
 				memset(glyph, 0, sizeof(Glyph));
@@ -380,7 +392,7 @@ void convert(Glyph* glyph, endianness end){
 			memset(glyph, 0, sizeof(Glyph));
 			numGlyphs++;
 		
-			if (utf[0] < 0xc2){ /*is an ascii character*/
+			if (utf[0] < 194){ /*is an ascii character*/
 			
 				utf[1] = '\0';
 				memset(glyph, 0, sizeof(Glyph));
@@ -388,15 +400,15 @@ void convert(Glyph* glyph, endianness end){
 				ascii++;
 				
 			}
-			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
+			else if (utf[0] >= 194 && utf[0] < 224) {
 				totalClock = clock();
 				read(fd, &utf[1], 1);
 				readSys += clock() - totalClock;
 			
 				totalClock = clock();
-				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
+				bits = ((utf[0] & 31) << 6) + (utf[1] & 63);
 				
-				utf[0] = (bits & 0x00ff);
+				utf[0] = (bits & 255);
 				
 				utf[1] = (bits >> 8);
 				writeUser += clock() - totalClock;
@@ -405,16 +417,16 @@ void convert(Glyph* glyph, endianness end){
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 			
 			}
-			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
+			else if (utf[0] >= 224 && utf[0] < 240) {
 				totalClock = clock();
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				readSys += clock() - totalClock;
 				
 				totalClock = clock();
-				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
+				bits = ((utf[0] & 15) << 12) + ((utf[1] & 63) << 6) +(utf[2] & 63);
 				
-				utf[0] = (bits & 0x00ff);
+				utf[0] = (bits & 255);
 			
 				utf[1] = (bits >> 8);
 				writeUser += clock() - totalClock;
@@ -423,7 +435,7 @@ void convert(Glyph* glyph, endianness end){
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 			
 			}
-			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
+			else if (utf[0] >= 240) { /*surrogate pairs*/
 				surro++;
 				totalClock = clock();
 				read(fd, &utf[1], 1);
@@ -432,18 +444,18 @@ void convert(Glyph* glyph, endianness end){
 				readSys += clock() - totalClock;
 			
 				totalClock = clock();
-				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
+				bits = ((utf[0] & 8) << 18) + ((utf[1] & 63) <<12) + ((utf[2] & 63) <<6) + (utf[3] & 63);
 				bits -= 65536; /* subtract 0x10000 */
 				surr1 = bits >> 10;
-				surr2 = bits & 0x3ff;
-				surr1 += 0xd800;
-				surr2 += 0xdc00;
+				surr2 = bits & 1023;
+				surr1 += 55296;
+				surr2 += 56320;
 				
-				utf[0] = (surr1 & 0x00ff);
+				utf[0] = (surr1 & 255);
 			
 				utf[1] = (surr1 >> 8);
 				
-				utf[2] = (surr2 & 0x00ff);
+				utf[2] = (surr2 & 255);
 				
 				utf[3] = (surr2 >> 8);
 				writeUser += clock() - totalClock;
@@ -480,10 +492,10 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 	bits |= (bytes[FIRST] + (bytes[SECOND] << 8));
 	/* Check high surrogate pair using its special value range.*/
 	
-	if(bits > 0x000F && bits < 0xF8FF){ 
+	if(bits > 15 && bits < 63743){ 
 		if(read(*fd, &bytes[SECOND], 1) == 1 && read(*fd, &bytes[FIRST], 1) == 1){
 			bits |= (bytes[FIRST] + (bytes[SECOND] << 8));
-			if(bits > 0xDAAF || bits < 0x00FF){ /* Check low surrogate pair. */
+			if(bits > 55983 || bits < 255){ /* Check low surrogate pair. */
 				lseek(*fd, -OFFSET, SEEK_CUR); 
 				glyph->surrogate = false; 
 			} else {
@@ -492,8 +504,6 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 			}
 		}
 	}
-
-	/* if (bits > 0xffff) glyph->surrogate = true; */
 
 	if(!glyph->surrogate){
 		glyph->bytes[THIRD] = glyph->bytes[FOURTH] |= 0;
