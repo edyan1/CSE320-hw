@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <sys/utsname.h>
 #include <limits.h>
+#include <time.h>
 
 char* filename;
 char* fileout;
@@ -18,6 +19,17 @@ static int bytecount;
 static int ascii;
 static float surro;
 static int numGlyphs;
+
+static int readReal;
+static int readUser;
+static int readSys;
+static int convReal;
+static int convUser;
+static int convSys;
+static int writeReal;
+static int writeUser;
+static int writeSys;
+static int totalClock;
 
 FILE* wr;
 int writeFlag;
@@ -35,6 +47,17 @@ int main(int argc, char** argv)
 	ascii = 0;
 	surro = 0;
 	numGlyphs = 0;
+
+	readReal=0;
+	readUser=0;
+	readSys=0;
+	convReal=0;
+	convUser=0;
+	convSys=0;
+	writeReal=0;
+	writeUser=0;
+	writeSys=0;
+	totalClock=0;
 
 	fileout = (char*) malloc(100);
 
@@ -69,19 +92,10 @@ int main(int argc, char** argv)
 	/* Handle BOM bytes for UTF16 specially. 
          * Read our values into the first and second elements. */
 	if((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1){ 
+		totalClock = clock();
+
 		bytecount += 2;
 		memset(glyph, 0, sizeof(Glyph));
-		/*void* memset_return = memset(glyph, 0, sizeof(Glyph));
-		 Memory write failed, recover from it: */
-	    /*if(memset_return == NULL){
-		     tweak write permission on heap memory.
-		    __asm__ volatile (
-		    	"movl $8, %esi\n"
-		        "movl $.LC0, %edi\n"
-		        "movl $0, %eax");
-		     Now make the request again. */
-		   /* memset(glyph, 0, sizeof(Glyph)+1);
-	    } */
 		
 		/* Check for both endianness of the system*/
 		if((buf[0] == 0xfe && buf[1] == 0xff) || (buf[0] == 0xfe000000 && buf[1] == 0xff000000)  ){
@@ -101,6 +115,9 @@ int main(int argc, char** argv)
 			exit(EXIT_FAILURE);
 		}
 		
+
+		readUser += clock() - totalClock;
+		readReal += readUser; 
 		/* Memory write failed, recover from it:
 
 			if(memset_return == NULL){
@@ -148,16 +165,22 @@ int main(int argc, char** argv)
 		write(fd, &buf[1], 1);
 		write(fd, &buf[0], 1);
 		*/
-
+		totalClock = clock();
 		/*write the BOM to the new output file*/
 		if(writeFlag == 1){		
 			fwrite(&buf[1], 1, 1, wr);
 			fwrite(&buf[0], 1, 1, wr);
 		}
+		writeSys = clock() - totalClock;
+		writeReal += writeSys;
+
 	}
 	/* Now deal with the rest of the bytes.*/
 	if (source != UTF8) {
+		totalClock = clock();
 		while((rv = read(fd, &buf[0], 1)) == 1 && (rv = read(fd, &buf[1], 1)) == 1) {
+			readSys += clock() - totalClock;
+
 			bytecount += 2;
 			if(source == LITTLE && buf[0] <= 0x7f && buf[1]==0x00){
 				ascii++;
@@ -169,6 +192,8 @@ int main(int argc, char** argv)
 			if(source == BIG && buf[0] >= 0xd8) surro+=0.5;
 			memset(glyph, 0, sizeof(Glyph));
 			write_glyph(swap_endianness(fill_glyph(glyph, buf, source, &fd)));
+
+			totalClock = clock();
 	    }
 	}
 
@@ -185,7 +210,7 @@ int main(int argc, char** argv)
 }
 
 Glyph* swap_endianness(Glyph* glyph) {
-
+	totalClock = clock();
 	numGlyphs++;
 	/* Use XOR to be more efficient with how we swap values. */
 	glyph->bytes[0] ^= glyph->bytes[1];
@@ -197,6 +222,9 @@ Glyph* swap_endianness(Glyph* glyph) {
 		glyph->bytes[2] ^= glyph->bytes[3];
 	}
 	glyph->end = conversion;
+	
+	convUser += clock() - totalClock;
+	convReal += convUser;
 	return glyph;
 }
 
@@ -217,59 +245,80 @@ void convert(Glyph* glyph, endianness end){
 	if (end == BIG){
 
 		/*Write the UTF-16 BOM depending on endian*/
+		totalClock = clock();
 		read(fd, &utf[0], 1);
 		read(fd, &utf[1], 1);
 		read(fd, &utf[2], 1);
+		readSys += clock() - totalClock;
+		readReal += readSys;
 		/*read away the first 3 bytes of the BOM */
 		utf[0] = 254;
 		utf[1] = 255;
 		memset(glyph, 0, sizeof(Glyph));
 		write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 	
-
+		totalClock = clock();
 		while ( read(fd, &utf[0], 1) == 1){
-
+			readSys += clock() - totalClock;
+			
 			bytecount += 2;
 			numGlyphs++;
 			memset(glyph, 0, sizeof(Glyph));
 		
 			if (utf[0] < 0xc2){
+				totalClock = clock();
 				ascii++;
 				utf[1] = utf[0];
 				utf[0] = '\0';
+				writeUser += clock() - totalClock;
+				writeReal += writeUser;
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 		
 			}
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
+				totalClock = clock();
 				read(fd, &utf[1], 1);
+				readSys += clock() - totalClock;
+				
+				totalClock = clock();
 				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
 				
 				utf[0] = (bits >> 8);
 			
 				utf[1] = (bits & 0x00ff);
+				writeUser += clock()-totalClock;
 			
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 				
 			}
 			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
+				totalClock = clock();
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
+				readSys += clock() - totalClock;
+			
+				totalClock = clock();
 				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
 			
 				utf[0] = (bits >> 8);
 				utf[1] = (bits & 0x00ff);
+				writeUser+= clock()-totalClock;
+	
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 				
 			}
 			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
 				surro++;
-
+				totalClock = clock();
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				read(fd, &utf[3], 1);
+				readSys += clock() - totalClock;
+			
+				totalClock = clock();
 				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
 				bits -= 65536; /* subtract 0x10000 */
 				surr1 = bits >> 10;
@@ -284,11 +333,14 @@ void convert(Glyph* glyph, endianness end){
 				utf[2] = (surr2 >> 8);
 				
 				utf[3] = (surr2 & 0x00ff);
+				writeUser += clock() - totalClock;
+			
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 				
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[2], conversion, &fd));
+				totalClock = clock();
 				
 			}
 			
@@ -296,19 +348,22 @@ void convert(Glyph* glyph, endianness end){
 		
 	}
 	else if (end == LITTLE){
-
+		totalClock = clock();
 		/*Write the UTF-16 BOM depending on endian*/
 		read(fd, &utf[0], 1);
 		read(fd, &utf[1], 1);
 		read(fd, &utf[2], 1);
+		readSys += clock() - totalClock;
+	
 		utf[0] = 255;
 		utf[1] = 254;
 		memset(glyph, 0, sizeof(Glyph));
 		write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 	
+		totalClock = clock();
 
 		while ( read(fd, &utf[0], 1) == 1){
-
+			readSys = clock() - totalClock;
 			bytecount += 2;
 			memset(glyph, 0, sizeof(Glyph));
 			numGlyphs++;
@@ -322,34 +377,49 @@ void convert(Glyph* glyph, endianness end){
 				
 			}
 			else if (utf[0] >= 0xc2 && utf[0] < 0xe0) {
+				totalClock = clock();
 				read(fd, &utf[1], 1);
+				readSys += clock() - totalClock;
+			
+				totalClock = clock();
 				bits = ((utf[0] & 0x1f) << 6) + (utf[1] & 0x3f);
 				
 				utf[0] = (bits & 0x00ff);
 				
 				utf[1] = (bits >> 8);
+				writeUser += clock() - totalClock;
+			
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 			
 			}
 			else if (utf[0] >= 0xe0 && utf[0] < 0xf0) {
+				totalClock = clock();
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
+				readSys += clock() - totalClock;
+				
+				totalClock = clock();
 				bits = ((utf[0] & 0x0f) << 12) + ((utf[1] & 0x3f) << 6) +(utf[2] & 0x3f);
 				
 				utf[0] = (bits & 0x00ff);
 			
 				utf[1] = (bits >> 8);
+				writeUser += clock() - totalClock;
+				
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 			
 			}
 			else if (utf[0] >= 0xf0) { /*surrogate pairs*/
 				surro++;
-
+				totalClock = clock();
 				read(fd, &utf[1], 1);
 				read(fd, &utf[2], 1);
 				read(fd, &utf[3], 1);
+				readSys += clock() - totalClock;
+			
+				totalClock = clock();
 				bits = ((utf[0] & 0x08) << 18) + ((utf[1] & 0x3f) <<12) + ((utf[2] & 0x3f) <<6) + (utf[3] & 0x3f);
 				bits -= 65536; /* subtract 0x10000 */
 				surr1 = bits >> 10;
@@ -364,6 +434,8 @@ void convert(Glyph* glyph, endianness end){
 				utf[2] = (surr2 & 0x00ff);
 				
 				utf[3] = (surr2 >> 8);
+				writeUser += clock() - totalClock;
+	
 				memset(glyph, 0, sizeof(Glyph));
 				write_glyph(fill_glyph(glyph, &utf[0], conversion, &fd));
 			
@@ -372,7 +444,7 @@ void convert(Glyph* glyph, endianness end){
 				
 			}
 
-			;
+			totalClock = clock();
 		}
 	
 	}
@@ -386,7 +458,7 @@ void convert(Glyph* glyph, endianness end){
 
 Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd) 
 {
-	
+	totalClock = clock();
 	unsigned int bits = 0; 
 
 	glyph->bytes[0] = bytes[0];
@@ -418,12 +490,13 @@ Glyph* fill_glyph (Glyph* glyph, unsigned int bytes[2], endianness end, int* fd)
 		glyph->bytes[FOURTH] = bytes[SECOND];
 	}
 	glyph->end = end;
-
+	convUser += clock() - totalClock;
+	
 	return glyph;
 }
 
 void write_glyph(Glyph*glyph) {
-	
+	totalClock= clock();
 	if(glyph->surrogate){
 		
 		if(writeFlag == 1) fwrite(glyph->bytes, 1 ,sizeof(glyph->bytes), wr);
@@ -433,6 +506,8 @@ void write_glyph(Glyph*glyph) {
 		else write(STDOUT_FILENO, glyph->bytes, NON_SURROGATE_SIZE);
 		
 	}
+	writeSys += clock() - totalClock;
+
 }
 
 void parse_args(int argc, char** argv) {
@@ -552,6 +627,11 @@ void print_verbosity(int verbos){
 	char *os;
 	struct utsname opsys;
 	float kilo = (float)bytecount/1000;
+	float cps = (float)CLOCKS_PER_SEC;
+
+	readReal = readUser + readSys;
+	writeReal = writeUser + writeSys;
+	convReal = convUser + convSys;
 
 	filepath = realpath(filename, actualpath);
 	uname(&opsys);
@@ -583,9 +663,9 @@ void print_verbosity(int verbos){
 		fprintf(stderr,"Output encoding: UTF-%s\n", endianConverted);
 		fprintf(stderr,"Hostmachine: %s\n", host);
 		fprintf(stderr,"Operating System: %s\n", os);
-		fprintf(stderr,"Reading: real=%f, user=%f, sys=%f\n",1.0,1.0,1.0);
-		fprintf(stderr,"Converting: real=%f, user=%f, sys=%f\n",1.0,1.0,1.0);
-		fprintf(stderr,"Writing: real=%f, user=%f, sys=%f\n",1.0,1.0,1.0);
+		fprintf(stderr,"Reading: real=%f, user=%f, sys=%f\n",readReal/cps, readUser/cps, readSys/cps);
+		fprintf(stderr,"Converting: real=%f, user=%f, sys=%f\n", convReal/cps, convUser/cps, convSys/cps);
+		fprintf(stderr,"Writing: real=%f, user=%f, sys=%f\n", writeReal/cps, writeUser/cps, writeSys/cps);
 		fprintf(stderr, "ASCII: %.2f%%\n", (float)((float)ascii/(float)numGlyphs)*100);
 		fprintf(stderr, "Surrogates: %.2f%%\n", (float)(surro/(float)numGlyphs)*100);
 		fprintf(stderr, "Glyphs: %d\n", numGlyphs);
