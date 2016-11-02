@@ -16,6 +16,7 @@ static char* user;
 static char* home;
 static char* hostName;
 static char* dir;
+static char* cwd;
 
 
 /* 
@@ -38,7 +39,7 @@ int main(int argc, char** argv) {
     //to install your own.
 
     char *cmd;
-    char* cwd = malloc(50);
+    cwd = malloc(50);
 
     int gotHost;
     hostName = malloc(20);
@@ -59,8 +60,6 @@ int main(int argc, char** argv) {
 
     lineIn = malloc(100);
     setPrompt();
-
-    printf("\e[31mHello\e[32m, \e[34mBlue \e[32mWorld\e[0m.\n");
 
     while((cmd = readline(lineIn)) != NULL) {
         if (strcmp(cmd,"quit")==0)
@@ -142,7 +141,38 @@ void sfish_help(){
 }
 
 void sfish_cd(){
+    char* arg;
+    if ((arg = strtok(NULL, " ")) != NULL){
 
+        if (strcmp(arg, ".")==0) return; //if cd . then do nothing and return
+
+        else if (strcmp(arg, "..")==0){
+            chdir("..");
+            getcwd(cwd, 50);
+            dir = NULL; 
+
+            /*if home and current working directly match, then set ~
+              otherwise set dir as current working directory but skipping the home string */
+            if (strcmp(home, cwd) == 0) dir = "~";
+            else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+            setPrompt();
+            return;
+
+        }
+        return;
+    }
+    else { //if command is just cd with no argument, go to home directory
+        chdir(getenv("HOME"));
+        getcwd(cwd, 50);
+        dir = NULL; 
+
+        /*if home and current working directly match, then set ~
+          otherwise set dir as current working directory but skipping the home string */
+        if (strcmp(home, cwd) == 0) dir = "~";
+        else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+        setPrompt();
+        return;
+    }
 }
 
 void sfish_pwd(){
@@ -313,53 +343,53 @@ void setPrompt(){
     if(userBold) {
         switch(userColor){
             case 30: 
-                colorUser = "\e[1;30m"; 
+                colorUser = "\001\e[1;30m\002"; 
                 break;
             case 31: 
-                colorUser = "\e[1;31m";
+                colorUser = "\001\e[1;31m\002";
                 break;
             case 32: 
-                colorUser = "\e[1;32m";
+                colorUser = "\001\e[1;32m\002";
                 break;
             case 33: 
-                colorUser = "\e[1;33m";
+                colorUser = "\001\e[1;33m\002";
                 break;
             case 34: 
-                colorUser = "\e[1;34m";
+                colorUser = "\001\e[1;34m\002";
                 break;
             case 35: 
-                colorUser = "\e[1;35m";
+                colorUser = "\001\e[1;35m\002";
                 break;
             case 36: 
-                colorUser = "\e[1;36m";
+                colorUser = "\001\e[1;36m\002";
                 break;
-            default: colorUser = "\e[1;37m";
+            default: colorUser = "\001\e[1;37m\002";
         }
     }
     else {
          switch(userColor){
             case 30: 
-                colorUser = "\e[30m"; 
+                colorUser = "\001\e[30m\002"; 
                 break;
             case 31: 
-                colorUser = "\e[31m";
+                colorUser = "\001\e[31m\002";
                 break;
             case 32: 
-                colorUser = "\e[32m";
+                colorUser = "\001\e[32m\002";
                 break;
             case 33: 
-                colorUser = "\e[33m";
+                colorUser = "\001\e[33m\002";
                 break;
             case 34: 
-                colorUser = "\e[34m";
+                colorUser = "\001\e[34m\002";
                 break;
             case 35: 
-                colorUser = "\e[35m";
+                colorUser = "\001\e[35m\002";
                 break;
             case 36: 
-                colorUser = "\e[36m";
+                colorUser = "\001\e[36m\002";
                 break;
-            default: colorUser = "\e[37m";
+            default: colorUser = "\001\e[37m\002";
         }
     }
 
@@ -368,56 +398,55 @@ void setPrompt(){
     if (machineBold){
         switch(machineColor){
             case 30: 
-                colorMachine = "\e[1;30m";
+                colorMachine = "\001\e[1;30m\002";
                 break;
             case 31: 
-                colorMachine = "\e[1;31m";
+                colorMachine = "\001\e[1;31m\002";
                 break;
 
             case 32: 
-                colorMachine = "\e[1;32m";
+                colorMachine = "\001\e[1;32m\002";
                 break;
             case 33: 
-                colorMachine = "\e[1;33m";
+                colorMachine = "\001\e[1;33m\002";
                 break;
             case 34: 
-                colorMachine = "\e[1;34m";
+                colorMachine = "\001\e[1;34m\002";
                 break;
             case 35: 
-                colorMachine = "\e[1;35m";
+                colorMachine = "\001\e[1;35m\002";
                 break;
             case 36: 
-                colorMachine = "\e[1;36m";
+                colorMachine = "\001\e[1;36m\002";
                 break;
-            default: colorMachine = "\e[1;37m";
+            default: colorMachine = "\001\e[1;37m\002";
         }
     }
 
     else {
         switch(machineColor){
             case 30: 
-                colorMachine = "\e[30m";
+                colorMachine = "\001\e[30m\002";
                 break;
             case 31: 
-                colorMachine = "\e[31m";
+                colorMachine = "\001\e[31m\002";
                 break;
-
             case 32: 
-                colorMachine = "\e[32m";
+                colorMachine = "\001\e[32m\002";
                 break;
             case 33: 
-                colorMachine = "\e[33m";
+                colorMachine = "\001\e[33m\002";
                 break;
             case 34: 
-                colorMachine = "\e[34m";
+                colorMachine = "\001\e[34m\002";
                 break;
             case 35: 
-                colorMachine = "\e[35m";
+                colorMachine = "\001\e[35m\002";
                 break;
             case 36: 
-                colorMachine = "\e[36m";
+                colorMachine = "\001\e[36m\002";
                 break;
-            default: colorMachine = "\e[37m";
+            default: colorMachine = "\001\e[37m\002";
         }
     }
   
@@ -433,7 +462,7 @@ void setPrompt(){
     if (promptFlag == 3) strcat(lineIn, "@");    
 
     if (promptFlag >= 2) strcat(lineIn, hostName);
-    strcat(lineIn, "\e[0m");
+    strcat(lineIn, "\001\e[0m\002");
     strcat(lineIn, ":");
     strcat(lineIn, "[");
     strcat(lineIn, dir);
