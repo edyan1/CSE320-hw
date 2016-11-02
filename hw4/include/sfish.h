@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 
 const char* help = "help menu:\n blah blah\n some other stuff\n and some more stuff\n";

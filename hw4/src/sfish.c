@@ -144,7 +144,10 @@ void sfish_cd(){
     char* arg;
     if ((arg = strtok(NULL, " ")) != NULL){
 
-        if (strcmp(arg, ".")==0) return; //if cd . then do nothing and return
+        if (strcmp(arg, ".")==0) {
+            chdir(".");
+            return;
+        }  
 
         else if (strcmp(arg, "..")==0){
             chdir("..");
@@ -159,6 +162,32 @@ void sfish_cd(){
             return;
 
         }
+
+        else { //must include / in directory path
+            char* cdDir = malloc(50);
+            memset(cdDir, 0 , 50);
+            getcwd(cwd, 50);
+            strcat(cdDir, cwd);
+            strcat(cdDir, arg);
+            if(chdir(cdDir)==-1) {
+                fprintf(stderr,"Invalid directory. Error number:%d\n", errno);
+                free(cdDir);
+                return;
+            }
+
+            getcwd(cwd, 50);
+            dir = NULL; 
+
+            /*if home and current working directly match, then set ~
+              otherwise set dir as current working directory but skipping the home string */
+            if (strcmp(home, cwd) == 0) dir = "~";
+            else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+            setPrompt();
+            
+            free(cdDir);
+            return;
+        }
+
         return;
     }
     else { //if command is just cd with no argument, go to home directory
