@@ -32,11 +32,15 @@ static int machineColor = 37;
 static int userBold = 0;
 static int machineBold = 0;
 
+
 int main(int argc, char** argv) {
     //DO NOT MODIFY THIS. If you do you will get a ZERO.
     rl_catch_signals = 0;
     //This is disable readline's default signal handlers, since you are going
     //to install your own.
+
+    char** args = malloc(100);
+    memset(args, 0, 100);
 
     char *cmd;
     cwd = malloc(50);
@@ -75,7 +79,18 @@ int main(int argc, char** argv) {
         #endif
         //You WILL lose points if your shell prints out garbage values.
 
-        get_builtin(cmd);
+        //parse the input command into a string array
+        int i = 1;
+        args[0] = strtok(cmd, " ");
+        while ((args[i] = strtok(NULL, " ")) != NULL){
+            i++;
+        }
+
+
+        //call binaries 
+        if(!get_builtin(cmd, args)){
+            get_exec(cmd, args);
+        }
 
         
 
@@ -86,24 +101,20 @@ int main(int argc, char** argv) {
     free(cmd);
     free(hostName);
     free(lineIn);
+    free(args);
     //WE WILL CHECK VALGRIND!
 
     return EXIT_SUCCESS;
 }
 
-void get_builtin(char *cmd) {
+int get_builtin(char *cmd, char** args) {
+    //returns 1 on success, 0 on failure
     pid_t child_id;
-    
     int i;
-    
-    char* input = cmd;
-
-    if(strlen(cmd) > 4){
-        input = strtok(cmd, " ");
-    }
+    char* input = args[0];
 
     for (i = 0; i < 6; i++){
-        if (strcmp(input, built_in[i])==0) 
+        if (strcmp(input, built_in[i])==0) //compare to static defined list of built in commands
             break;
     }
     switch(i){
@@ -112,7 +123,7 @@ void get_builtin(char *cmd) {
             else wait(&status);
             break;
         case 1: /* cd */
-            sfish_cd();
+            sfish_cd(args);
             break;
         case 2: /* pwd */
             if ((child_id=fork())==0) sfish_pwd();
@@ -123,16 +134,35 @@ void get_builtin(char *cmd) {
             else wait(&status);
             break;
         case 4:
-            sfish_chpmt(cmd);
+            sfish_chpmt(args);
            
             break;
         case 5:
-            sfish_chclr(cmd);
+            sfish_chclr(args);
             
             break;
-        default: return;
+        default: return 0;
     }
+
+    return 1;
     
+}
+
+int get_exec(char *cmd, char** args){
+    //returns 1 on success, 0 on failure
+    //char* path = getenv("PATH");
+    
+    int child_id;
+    
+    if ((child_id=fork())==0){
+
+        execvp(cmd, args);
+        
+    }
+
+    else wait(&status);
+
+    return 1;
 }
 
 void sfish_help(){
@@ -140,9 +170,9 @@ void sfish_help(){
     exit(EXIT_SUCCESS);
 }
 
-void sfish_cd(){
+void sfish_cd(char** args){
     char* arg;
-    if ((arg = strtok(NULL, " ")) != NULL){
+    if ((arg = args[1]) != NULL){
 
         if (strcmp(arg, ".")==0) {
             chdir(".");
@@ -218,12 +248,12 @@ void sfish_prt(int status){
 
 }
 
-void sfish_chpmt(char *cmd){
+void sfish_chpmt(char **args){
     
     char* arg1;
     char* arg2;
-    if ((arg1 = strtok(NULL, " ")) != NULL) {
-        if((arg2 = strtok(NULL, " ")) != NULL);
+    if ((arg1 = args[1]) != NULL) {
+        if((arg2 = args[2]) != NULL);
         else {
             fprintf(stderr, "Missing argument for chpmt command.\n");
             return;
@@ -284,14 +314,14 @@ void sfish_chpmt(char *cmd){
     setPrompt();
 }
 
-void sfish_chclr(char *cmd){
+void sfish_chclr(char **args){
 
     char* arg1;
     char* arg2;
     char* arg3;
-    if ((arg1 = strtok(NULL, " ")) != NULL){ 
-        if((arg2 = strtok(NULL, " ")) != NULL) {
-            if((arg3 = strtok(NULL, " ")) != NULL);
+    if ((arg1 = args[1]) != NULL){ 
+        if((arg2 = args[2]) != NULL) {
+            if((arg3 = args[3]) != NULL);
             else {
                 fprintf(stderr, "Missing arguments for chclr command.\n");
                 return;
