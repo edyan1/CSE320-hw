@@ -21,7 +21,8 @@ debug: all
 
 all: setup $(EXEC)
 
-setup: mkdir -p bin build
+setup: 
+	@mkdir -p bin build
 
 $(EXEC): $(_OBJF)
 	$(CC) $^ -o $(BIND)/$@ -l $(LIBS)
