@@ -39,10 +39,12 @@ int main(int argc, char** argv) {
     //This is disable readline's default signal handlers, since you are going
     //to install your own.
 
-    char** args = malloc(100);
-    memset(args, 0, 100);
+    char** args = malloc(200);
+    memset(args, 0, 200);
 
     char *cmd;
+    char *cmdCopy;
+
     cwd = malloc(50);
 
     int gotHost;
@@ -71,30 +73,36 @@ int main(int argc, char** argv) {
 
         //All your debug print statments should be surrounded by this #ifdef
         //block. Use the debug target in the makefile to run with these enabled.
-        #ifdef DEBUG
+        /* #ifdef DEBUG
         fprintf(stderr, "Length of command entered: %ld\n", strlen(cmd));
-        #endif
+        #endif */
         //You WILL lose points if your shell prints out garbage values.
 
         //parse the input command into a string array
-        int i = 1;
-        args[0] = strtok(cmd, " ");
-        while ((args[i] = strtok(NULL, " ")) != NULL){
-            i++;
+        int i = 0;
+        //args[0] = strsep(&cmd, " ");
+        cmdCopy = strdup(cmd);
+        while ((args[i] = strsep(&cmdCopy, " ")) != NULL){
+            if(strlen(args[i]) > 0) i++;
+            else ;
         }
 
+        if (strcmp(args[0],"quit")==0)
+            break;
+
+        if (strcmp(args[0], "exit")==0)
+            break;
+
+        for (int j=0; j < i;j++) printf("%s\n", args[j]);
 
         //call binaries, first checks builtin, if that fails, try to exec 
-        if(!get_builtin(cmd, args)){ 
-            get_exec(cmd, args);
-        }
-
-        
+        if(!get_builtin(cmd, args)) get_exec(cmd, args);
 
     }
 
     //Don't forget to free allocated memory, and close file descriptors.
     free(cwd);
+    free(cmdCopy);
     free(cmd);
     free(dir);
     free(hostName);
@@ -148,13 +156,11 @@ int get_builtin(char *cmd, char** args) {
             break;
         case 4:
             sfish_chpmt(args);
-           
             break;
         case 5:
             sfish_chclr(args);
-            
             break;
-        default: return 0;
+        default: return 0; //not a built in command
     }
 
     return 1;
@@ -171,7 +177,8 @@ int get_exec(char *cmd, char** args){
     
     if ((child_id=fork())==0){
 
-        execvp(cmd, args);
+        execvp(args[0], args);
+        exit(EXIT_SUCCESS);
         
     }
 
@@ -333,9 +340,6 @@ void sfish_chclr(char **args){
         fprintf(stderr, "Missing arguments for chclr command.\n");
         return;
     }
-    #ifdef DEBUG
-    printf("%s\t%s\t%s\n",arg1, arg2, arg3);
-    #endif
 
     //analyze arguments;
     //using strcmp, so if int = 0, then flag is true
