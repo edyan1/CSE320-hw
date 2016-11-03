@@ -11,6 +11,9 @@
 
 const char* help = "help menu:\n blah blah\n some other stuff\n and some more stuff\n";
 
+//set the static dir char pointer
+void setDir();
+
 //return 1 on success, 0 on failure
 int get_builtin(char* cmd, char** args);
 

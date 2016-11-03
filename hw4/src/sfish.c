@@ -55,12 +55,9 @@ int main(int argc, char** argv) {
     user = getenv("USER");
     home = getenv("HOME");
     getcwd(cwd, 50);
-    dir = NULL; 
 
-    /*if home and current working directly match, then set ~
-      otherwise set dir as current working directory but skipping the home string */
-    if (strcmp(home, cwd) == 0) dir = "~";
-    else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+    dir = malloc(100);
+    setDir();
 
     lineIn = malloc(100);
     setPrompt();
@@ -87,8 +84,8 @@ int main(int argc, char** argv) {
         }
 
 
-        //call binaries 
-        if(!get_builtin(cmd, args)){
+        //call binaries, first checks builtin, if that fails, try to exec 
+        if(!get_builtin(cmd, args)){ 
             get_exec(cmd, args);
         }
 
@@ -99,12 +96,28 @@ int main(int argc, char** argv) {
     //Don't forget to free allocated memory, and close file descriptors.
     free(cwd);
     free(cmd);
+    free(dir);
     free(hostName);
     free(lineIn);
     free(args);
     //WE WILL CHECK VALGRIND!
 
     return EXIT_SUCCESS;
+}
+
+void setDir(){
+
+    getcwd(cwd, 50);
+    memset(dir, 0, 100);
+    
+    int compare = strcmp(home, cwd);
+
+    if (compare==0) strcat(dir, "~");
+    else if (compare < 0) {
+        strcat(dir, "~");
+        strcat(dir, cwd+strlen(home));
+    }
+    else dir = strcpy(dir,cwd);;
 }
 
 int get_builtin(char *cmd, char** args) {
@@ -153,6 +166,8 @@ int get_exec(char *cmd, char** args){
     //char* path = getenv("PATH");
     
     int child_id;
+
+    //TO DO: use stat system call to check file
     
     if ((child_id=fork())==0){
 
@@ -181,13 +196,8 @@ void sfish_cd(char** args){
 
         else if (strcmp(arg, "..")==0){
             chdir("..");
-            getcwd(cwd, 50);
-            dir = NULL; 
 
-            /*if home and current working directly match, then set ~
-              otherwise set dir as current working directory but skipping the home string */
-            if (strcmp(home, cwd) == 0) dir = "~";
-            else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+            setDir();
             setPrompt();
             return;
 
@@ -205,15 +215,8 @@ void sfish_cd(char** args){
                 return;
             }
 
-            getcwd(cwd, 50);
-            dir = NULL; 
-
-            /*if home and current working directly match, then set ~
-              otherwise set dir as current working directory but skipping the home string */
-            if (strcmp(home, cwd) == 0) dir = "~";
-            else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+            setDir();
             setPrompt();
-            
             free(cdDir);
             return;
         }
@@ -222,13 +225,7 @@ void sfish_cd(char** args){
     }
     else { //if command is just cd with no argument, go to home directory
         chdir(getenv("HOME"));
-        getcwd(cwd, 50);
-        dir = NULL; 
-
-        /*if home and current working directly match, then set ~
-          otherwise set dir as current working directory but skipping the home string */
-        if (strcmp(home, cwd) == 0) dir = "~";
-        else if (strncmp(home, cwd, strlen(home)) == 0) dir = &cwd[strlen(home)];
+        setDir();
         setPrompt();
         return;
     }
