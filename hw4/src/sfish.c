@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
 
                 memmove(fileIn, fileInS, fileInP-fileInS);
                 for (int i = 0; i < (fileInP-fileInS); i++) fileInS[i] = ' ';
-                printf("%s\n", fileIn);
+                //printf("%s\n", fileIn);
             }
 
             //find output redirection
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
                 
                 memmove(fileOut, fileOutS, fileOutP-fileOutS);
                 for (int i = 0; i < (fileOutP-fileOutS); i++) fileOutS[i] = ' ';
-                printf("%s\n", fileOut);
+                //printf("%s\n", fileOut);
             }
 
             //separate exec commands by arguments
@@ -135,9 +135,7 @@ int main(int argc, char** argv) {
                 else ;
             }
 
-            /*fprintf(stderr, "Length of command entered: %ld\n", strlen(cmd));
-            for (int j=0; j < i;j++) fprintf(stderr,"%s\t", args[j]);
-            fprintf(stderr,"\n"); */
+            
 
             if (strcmp(args[0],"quit")==0)
                 break;
@@ -149,17 +147,12 @@ int main(int argc, char** argv) {
             //block. Use the debug target in the makefile to run with these enabled.
             /*#ifdef DEBUG
             
-            int fd = open("newfile.txt", O_RDWR | O_CREAT, mode);
-            dup2(fd, STDOUT_FILENO);
-
+            fprintf(stderr, "Length of command entered: %ld\n", strlen(cmd));
+            for (int j=0; j < i;j++) fprintf(stderr,"%s\t", args[j]);
+            fprintf(stderr,"\n"); 
             
-
-            close(fd);
             #endif*/
-            //You WILL lose points if your shell prints out garbage values.
-
-            //Part III: Output Redirection
-            
+            //You WILL lose points if your shell prints out garbage values.            
 
             //call binaries, first checks builtin, if that fails, try to exec 
             if(!get_builtin(cmd, args)) get_exec(cmd, args);
@@ -294,10 +287,45 @@ int get_builtin(char *cmd, char** args) {
     
 }
 
+int statPath(char* bin){
+    int n = -1;
+    int i = 0; //path string sep counter
+    int pathLen = strlen(getenv("PATH"))+1;
+    char* path = malloc(pathLen);
+    
+    strncpy(path, getenv("PATH"), pathLen-1);
+    
+    char** checkPaths = malloc(pathLen+50);
+    struct stat* buf = malloc(sizeof(struct stat));
+    memset(checkPaths, 0, pathLen+50);
+    
+    while ((checkPaths[i] = strsep(&path, ":")) != NULL){
+        i++;    
+    }
+
+    
+    char* find = malloc(pathLen);
+    for (int j = 0; j < i; j++){
+        
+        memset(find, 0, pathLen);
+        strcpy(find, checkPaths[j]);
+        strcat(find, "/");
+        strcat(find, bin);
+        
+        n=stat(find, buf);
+        if (n==0) break;   
+    }
+
+    free(find);
+    free(checkPaths);
+    free(buf);
+    free(path);
+    return n;
+}
+
 int get_exec(char *cmd, char** args){
     //returns 1 on success, 0 on failure
-    //char* path = getenv("PATH");
-    
+
     int child_id;
 
     //TO DO: use stat system call to check file
@@ -306,8 +334,16 @@ int get_exec(char *cmd, char** args){
         if(inFlag) inRedir();
         if(outFlag) outRedir();
 
-        execvp(args[0], args);
-        exit(EXIT_SUCCESS);
+        
+        if (statPath(args[0]) == 0){
+          
+            execvp(args[0], args);
+            exit(EXIT_SUCCESS);
+        }
+        else {
+            fprintf(stderr, "No command %s found.\n", args[0]);
+            exit(EXIT_FAILURE);
+        }
         
     }
 

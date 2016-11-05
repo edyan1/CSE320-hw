@@ -25,6 +25,9 @@ void setDir();
 //return 1 on success, 0 on failure
 int get_builtin(char* cmd, char** args);
 
+//use stat on each path in $PATH to check for the executable binary
+int statPath(char* bin);
+
 //return 1 on success, 0 on failure
 int get_exec(char* cmd, char** args);
 
