@@ -13,6 +13,8 @@
 
 const char* help = "help menu:\n blah blah\n some other stuff\n and some more stuff\n";
 
+
+
 //input redirection method
 void inRedir();
 
@@ -45,4 +47,18 @@ void sfish_chpmt(char **args);
 
 void sfish_chclr(char **args);
 
+void sfish_jobs(char **args);
+
+void sfish_fg(char **args);
+
+void sfish_bg(char **args);
+
+void sfish_kill(char **args);
+
+void sfish_disown(char **args);
+
 void setPrompt();
+
+int readlineKeybinds();
+
+void callHelp();

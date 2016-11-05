@@ -9,7 +9,7 @@ if (builtin_func = get_builtin(input))
     else:
         wait_for_child() */
 
-const char *built_in[6] = {"help", "cd", "pwd", "prt", "chpmt", "chclr"};
+const char *built_in[11] = {"help", "cd", "pwd", "prt", "chpmt", "chclr", "jobs", "fg", "bg", "kill", "disown"};
 static char* lineIn;
 static int status = 0;
 static char* user;
@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
     rl_catch_signals = 0;
     //This is disable readline's default signal handlers, since you are going
     //to install your own.
+    rl_startup_hook = (void*)readlineKeybinds;
 
     char** args = malloc(200);
     memset(args, 0, 200);
@@ -227,7 +228,7 @@ int get_builtin(char *cmd, char** args) {
     int i;
     char* input = args[0];
 
-    for (i = 0; i < 6; i++){
+    for (i = 0; i < 11; i++){
         if (strcmp(input, built_in[i])==0) //compare to static defined list of built in commands
             break;
     }
@@ -236,6 +237,7 @@ int get_builtin(char *cmd, char** args) {
             if ((child_id=fork())==0) {
                 if(outFlag) outRedir();
                 sfish_help();
+                
             }
             else {
                 wait(&status);
@@ -274,11 +276,36 @@ int get_builtin(char *cmd, char** args) {
                 }
             }
             break;
-        case 4:
+        case 4: //chpmt
             sfish_chpmt(args);
             break;
-        case 5:
+        case 5: //chclr
             sfish_chclr(args);
+            break;
+        case 6: //jobs
+            if ((child_id=fork())==0) {
+                if(outFlag) outRedir();
+                sfish_jobs(args);
+            }
+            else {
+                wait(&status);
+                if(outFlag){
+                    memset(fileOut, 0, 100);
+                    outFlag =0;
+                }
+            }
+            break;
+        case 7: //fg
+            sfish_fg(args);
+            break;
+        case 8: //bg
+            sfish_bg(args);
+            break;
+        case 9: //kill
+            sfish_kill(args);
+            break;
+        case 10: //disown
+            sfish_disown(args);
             break;
         default: return 0; //not a built in command
     }
@@ -579,6 +606,28 @@ void sfish_chclr(char **args){
     setPrompt();
 }
 
+void sfish_jobs(char **args){
+
+    printf("JID\tStatus\tPID\tJob\n");
+    exit(EXIT_SUCCESS);
+}
+
+void sfish_fg(char **args){
+
+}
+
+void sfish_bg(char **args){
+
+}
+
+void sfish_kill(char **args){
+
+}
+
+void sfish_disown(char **args){
+
+}
+
 void setPrompt(){
 
     //printf("\e[31mHello\e[32m, \e[34mBlue \e[32mWorld\e[0m.\n");
@@ -712,4 +761,18 @@ void setPrompt(){
     strcat(lineIn, "[");
     strcat(lineIn, dir);
     strcat(lineIn, "]> ");
+}
+
+int readlineKeybinds(){
+    rl_command_func_t* helpCmd= (rl_command_func_t*)callHelp;
+    rl_bind_keyseq("\\C-h", helpCmd);
+
+    return 1;
+}
+
+void callHelp (){
+    printf("\n");
+    char* help[1] = {"help"};
+    get_builtin("help", help);
+    readline(lineIn);
 }
