@@ -7,9 +7,14 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/stat.h> 
+#include <fcntl.h>
 
 
 const char* help = "help menu:\n blah blah\n some other stuff\n and some more stuff\n";
+
+//output redirection method
+char* outRedir(char* cmd);
 
 //set the static dir char pointer
 void setDir();

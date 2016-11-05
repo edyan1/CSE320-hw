@@ -43,7 +43,16 @@ int main(int argc, char** argv) {
     memset(args, 0, 200);
 
     char *cmd;
-    char *cmdCopy;
+    char *cmdCopy; //make a copy of the input command to manipulate
+   // char *cmdExec; //the section to store the execution part of the input command
+
+    char *fileIn = malloc(100); //the input redirect <
+    char *fileOut = malloc(100); //the output redirect >
+   // char *cmdPipe; //pipe redirect
+
+    int inFlag = 0; // boolean flag for whether there is an input file
+    int outFlag = 0; // boolean flag for whether there is an output file
+   // int pipeNum = 0; //number of pipe executions
 
     cwd = malloc(50);
 
@@ -65,42 +74,96 @@ int main(int argc, char** argv) {
     setPrompt();
 
     while((cmd = readline(lineIn)) != NULL) {
-        if (strcmp(cmd,"quit")==0)
-            break;
+        if (strlen(cmd)==0){}
+        else {
 
-        if (strcmp(cmd, "exit")==0)
-            break;
+            //parse the input command into a string array
+            int i;
 
-        //All your debug print statments should be surrounded by this #ifdef
-        //block. Use the debug target in the makefile to run with these enabled.
-        /* #ifdef DEBUG
-        fprintf(stderr, "Length of command entered: %ld\n", strlen(cmd));
-        #endif */
-        //You WILL lose points if your shell prints out garbage values.
 
-        //parse the input command into a string array
-        int i = 0;
-        //args[0] = strsep(&cmd, " ");
-        cmdCopy = strdup(cmd);
-        while ((args[i] = strsep(&cmdCopy, " ")) != NULL){
-            if(strlen(args[i]) > 0) i++;
-            else ;
+            cmdCopy = strdup(cmd);
+
+            //find redirection
+            char* fileInS = strchr(cmdCopy, '<');
+            //find the first instance of <, then find the next >, < or |
+            //if none found, then end of command string, insert null terminator
+            //move the string to file In 
+            if (fileInS) {
+                inFlag = 1;
+                
+                char* fileInP;
+                fileInS[0]=' ';
+                fileInS+=1;
+                if (fileInS[0] ==' ') fileInS+=1; //if theres a space, skip it
+                fileInP = strpbrk(fileInS, "><| ");
+                if (!fileInP) fileInP = fileInS + strlen(fileInS);
+                //else fileInP[0] = '\0';
+
+                memmove(fileIn, fileInS, fileInP-fileInS);
+                for (int i = 0; i < (fileInP-fileInS); i++) fileInS[i] = ' ';
+                printf("%s\n", fileIn);
+            }
+
+            //find output redirection
+            char* fileOutS = strchr(cmdCopy, '>');
+            if (fileOutS) {
+                outFlag = 1;
+                
+                char* fileOutP;
+                fileOutS[0]=' ';
+                fileOutS+=1;
+                if (fileOutS[0] ==' ') fileOutS+=1; //if theres a space, skip it
+                fileOutP = strpbrk(fileOutS, "><| ");
+                if (!fileOutP) fileOutP = fileOutS + strlen(fileOutS);
+                //else fileOutP[0] = '\0';
+                
+                memmove(fileOut, fileOutS, fileOutP-fileOutS);
+                for (int i = 0; i < (fileOutP-fileOutS); i++) fileOutS[i] = ' ';
+                printf("%s\n", fileOut);
+            }
+
+            //separate exec commands by arguments
+            i = 0; //reset i to 0
+            while ((args[i] = strsep(&cmdCopy, " ")) != NULL){
+                if(strlen(args[i]) > 0) i++;
+                else ;
+            }
+
+            /*fprintf(stderr, "Length of command entered: %ld\n", strlen(cmd));
+            for (int j=0; j < i;j++) fprintf(stderr,"%s\t", args[j]);
+            fprintf(stderr,"\n"); */
+
+            if (strcmp(args[0],"quit")==0)
+                break;
+
+            if (strcmp(args[0], "exit")==0)
+                break;
+
+            //All your debug print statments should be surrounded by this #ifdef
+            //block. Use the debug target in the makefile to run with these enabled.
+            /*#ifdef DEBUG
+            
+            int fd = open("newfile.txt", O_RDWR | O_CREAT, mode);
+            dup2(fd, STDOUT_FILENO);
+
+            
+
+            close(fd);
+            #endif*/
+            //You WILL lose points if your shell prints out garbage values.
+
+            //Part III: Output Redirection
+            if (inFlag || outFlag) outRedir(cmd);
+
+            //call binaries, first checks builtin, if that fails, try to exec 
+            if(!get_builtin(cmd, args)) get_exec(cmd, args);
         }
-
-        if (strcmp(args[0],"quit")==0)
-            break;
-
-        if (strcmp(args[0], "exit")==0)
-            break;
-
-        for (int j=0; j < i;j++) printf("%s\n", args[j]);
-
-        //call binaries, first checks builtin, if that fails, try to exec 
-        if(!get_builtin(cmd, args)) get_exec(cmd, args);
 
     }
 
     //Don't forget to free allocated memory, and close file descriptors.
+    free(fileIn);
+    free(fileOut);
     free(cwd);
     free(cmdCopy);
     free(cmd);
@@ -108,9 +171,16 @@ int main(int argc, char** argv) {
     free(hostName);
     free(lineIn);
     free(args);
-    //WE WILL CHECK VALGRIND!
+        //WE WILL CHECK VALGRIND!
 
     return EXIT_SUCCESS;
+}
+
+char* outRedir(char* cmd){
+
+    //set the mode for output files that may be opened
+    //mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    return NULL;
 }
 
 void setDir(){
@@ -267,10 +337,6 @@ void sfish_chpmt(char **args){
         fprintf(stderr, "Missing argument for chpmt command.\n");
         return;
     }
-
-    #ifdef DEBUG
-    printf("%s\t%s\n",arg1, arg2);
-    #endif
 
     //analyze arguments;
     //using strcmp, so if int = 0, then flag is true
