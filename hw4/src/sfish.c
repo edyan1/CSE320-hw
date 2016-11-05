@@ -305,15 +305,25 @@ int statPath(char* bin){
 
     
     char* find = malloc(pathLen);
-    for (int j = 0; j < i; j++){
-        
-        memset(find, 0, pathLen);
-        strcpy(find, checkPaths[j]);
-        strcat(find, "/");
-        strcat(find, bin);
-        
-        n=stat(find, buf);
-        if (n==0) break;   
+
+    memset(find, 0, pathLen);
+    getcwd(find, 50);
+    if (bin[0]=='.') bin+=1;
+    else strcat(find, "/");
+    strcat(find, bin);    
+    n=stat(find, buf);
+
+    if (n!=0){
+        for (int j = 0; j < i; j++){
+            
+            memset(find, 0, pathLen);
+            strcpy(find, checkPaths[j]);
+            strcat(find, "/");
+            strcat(find, bin);
+            
+            n=stat(find, buf);
+            if (n==0) break;   
+        }
     }
 
     free(find);
@@ -334,9 +344,11 @@ int get_exec(char *cmd, char** args){
         if(inFlag) inRedir();
         if(outFlag) outRedir();
 
-        
+        /*execvp(args[0], args);
+        exit(EXIT_SUCCESS);*/
+
         if (statPath(args[0]) == 0){
-          
+            
             execvp(args[0], args);
             exit(EXIT_SUCCESS);
         }
@@ -391,6 +403,7 @@ void sfish_cd(char** args){
             memset(cdDir, 0 , 50);
             getcwd(cwd, 50);
             strcat(cdDir, cwd);
+            if(arg[0]!='/') strcat(cdDir, "/");
             strcat(cdDir, arg);
             if(chdir(cdDir)==-1) {
                 fprintf(stderr,"Invalid directory. Error number:%d\n", errno);
