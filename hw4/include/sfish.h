@@ -13,8 +13,11 @@
 
 const char* help = "help menu:\n blah blah\n some other stuff\n and some more stuff\n";
 
+//input redirection method
+void inRedir();
+
 //output redirection method
-char* outRedir(char* cmd);
+void outRedir();
 
 //set the static dir char pointer
 void setDir();

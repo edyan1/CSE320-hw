@@ -32,6 +32,10 @@ static int machineColor = 37;
 static int userBold = 0;
 static int machineBold = 0;
 
+static char *fileIn; //the input redirect <
+static char *fileOut;//the output redirect >
+static int inFlag = 0; // boolean flag for whether there is an input file
+static int outFlag = 0; // boolean flag for whether there is an output file, set to 2 if writing to stderr
 
 int main(int argc, char** argv) {
     //DO NOT MODIFY THIS. If you do you will get a ZERO.
@@ -46,12 +50,11 @@ int main(int argc, char** argv) {
     char *cmdCopy; //make a copy of the input command to manipulate
    // char *cmdExec; //the section to store the execution part of the input command
 
-    char *fileIn = malloc(100); //the input redirect <
-    char *fileOut = malloc(100); //the output redirect >
+    fileIn = malloc(100); //the input redirect <
+    fileOut = malloc(100); //the output redirect >
    // char *cmdPipe; //pipe redirect
 
-    int inFlag = 0; // boolean flag for whether there is an input file
-    int outFlag = 0; // boolean flag for whether there is an output file
+    
    // int pipeNum = 0; //number of pipe executions
 
     cwd = malloc(50);
@@ -97,7 +100,6 @@ int main(int argc, char** argv) {
                 if (fileInS[0] ==' ') fileInS+=1; //if theres a space, skip it
                 fileInP = strpbrk(fileInS, "><| ");
                 if (!fileInP) fileInP = fileInS + strlen(fileInS);
-                //else fileInP[0] = '\0';
 
                 memmove(fileIn, fileInS, fileInP-fileInS);
                 for (int i = 0; i < (fileInP-fileInS); i++) fileInS[i] = ' ';
@@ -108,14 +110,18 @@ int main(int argc, char** argv) {
             char* fileOutS = strchr(cmdCopy, '>');
             if (fileOutS) {
                 outFlag = 1;
-                
+
+                if(fileOutS[-1]=='2'){ //2 found before >, set output to stderr
+                    outFlag =2;
+                    fileOutS[-1]=' ';
+                }
+                            
                 char* fileOutP;
                 fileOutS[0]=' ';
                 fileOutS+=1;
                 if (fileOutS[0] ==' ') fileOutS+=1; //if theres a space, skip it
                 fileOutP = strpbrk(fileOutS, "><| ");
                 if (!fileOutP) fileOutP = fileOutS + strlen(fileOutS);
-                //else fileOutP[0] = '\0';
                 
                 memmove(fileOut, fileOutS, fileOutP-fileOutS);
                 for (int i = 0; i < (fileOutP-fileOutS); i++) fileOutS[i] = ' ';
@@ -153,7 +159,7 @@ int main(int argc, char** argv) {
             //You WILL lose points if your shell prints out garbage values.
 
             //Part III: Output Redirection
-            if (inFlag || outFlag) outRedir(cmd);
+            
 
             //call binaries, first checks builtin, if that fails, try to exec 
             if(!get_builtin(cmd, args)) get_exec(cmd, args);
@@ -176,11 +182,35 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
-char* outRedir(char* cmd){
+void inRedir(){
+
+    //open the input file
+    
+    int fd = open(fileIn, O_RDWR);
+    if(fd==-1) {
+        close(fd);
+        return;
+    }
+    else {
+        dup2(fd, STDIN_FILENO);    
+        close(fd);
+    }
+    
+}
+
+
+void outRedir(){
 
     //set the mode for output files that may be opened
-    //mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    return NULL;
+    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    int fd = open(fileOut, O_RDWR | O_CREAT | O_TRUNC, mode);
+    if(fd==-1){
+        close(fd);
+        return;
+    }
+    if(outFlag == 2) dup2(fd, STDERR_FILENO); //if flag==2, set to stderr
+    else dup2(fd, STDOUT_FILENO);  //otherwise set to stdout
+    close(fd);
 }
 
 void setDir(){
@@ -194,7 +224,7 @@ void setDir(){
     else if (compare < 0) {
         strcat(dir, "~");
         strcat(dir, cwd+strlen(home));
-    }
+    } 
     else dir = strcpy(dir,cwd);;
 }
 
@@ -210,19 +240,46 @@ int get_builtin(char *cmd, char** args) {
     }
     switch(i){
         case 0: /* help */
-            if ((child_id=fork())==0) sfish_help();
-            else wait(&status);
+            if ((child_id=fork())==0) {
+                if(outFlag) outRedir();
+                sfish_help();
+            }
+            else {
+                wait(&status);
+                if(outFlag){
+                    memset(fileOut, 0, 100);
+                    outFlag=0;
+                }
+            }
             break;
         case 1: /* cd */
             sfish_cd(args);
             break;
         case 2: /* pwd */
-            if ((child_id=fork())==0) sfish_pwd();
-            else wait(&status);
+            if ((child_id=fork())==0) {
+                if(outFlag) outRedir();
+                sfish_pwd();
+            }
+            else {
+                wait(&status);
+                if(outFlag){
+                    memset(fileOut, 0, 100);
+                    outFlag=0;
+                }
+            }
             break;
         case 3: /* prt */
-            if ((child_id=fork())==0) sfish_prt(status);
-            else wait(&status);
+            if ((child_id=fork())==0) {
+                if(outFlag) outRedir();
+                sfish_prt(status);
+            }
+            else {
+                wait(&status);
+                if(outFlag){
+                    memset(fileOut, 0, 100);
+                    outFlag =0;
+                }
+            }
             break;
         case 4:
             sfish_chpmt(args);
@@ -246,13 +303,26 @@ int get_exec(char *cmd, char** args){
     //TO DO: use stat system call to check file
     
     if ((child_id=fork())==0){
+        if(inFlag) inRedir();
+        if(outFlag) outRedir();
 
         execvp(args[0], args);
         exit(EXIT_SUCCESS);
         
     }
 
-    else wait(&status);
+    else {
+        wait(&status);
+        if(inFlag){
+            memset(fileIn, 0, 100);
+            inFlag = 0;
+        }
+        if(outFlag){
+            memset(fileOut, 0, 100);
+            outFlag = 0;
+        }
+
+    }
 
     return 1;
 }
