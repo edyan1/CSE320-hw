@@ -17,6 +17,7 @@ static char* home;
 static char* hostName;
 static char* dir;
 static char* cwd;
+static int numRun =0;
 
 
 /* 
@@ -86,6 +87,7 @@ int main(int argc, char** argv) {
 
 
             cmdCopy = strdup(cmd);
+            numRun++;
 
             //find redirection
             char* fileInS = strchr(cmdCopy, '<');
@@ -371,13 +373,15 @@ int get_exec(char *cmd, char** args){
         if(inFlag) inRedir();
         if(outFlag) outRedir();
 
-        /*execvp(args[0], args);
-        exit(EXIT_SUCCESS);*/
 
         if (statPath(args[0]) == 0){
             
-            execvp(args[0], args);
-            exit(EXIT_SUCCESS);
+            if((execvp(args[0], args))==-1){
+                fprintf(stderr, "No command %s found.\n", args[0]);
+                exit(EXIT_FAILURE);
+            }
+                
+            else exit(EXIT_SUCCESS);
         }
         else {
             fprintf(stderr, "No command %s found.\n", args[0]);
@@ -764,8 +768,11 @@ void setPrompt(){
 }
 
 int readlineKeybinds(){
-    rl_command_func_t* helpCmd= (rl_command_func_t*)callHelp;
+    rl_command_func_t* helpCmd = (rl_command_func_t*)callHelp;
     rl_bind_keyseq("\\C-h", helpCmd);
+
+    rl_command_func_t* sfishInfo = (rl_command_func_t*)sfish_info;
+    rl_bind_keyseq("\\C-p", sfishInfo);
 
     return 1;
 }
@@ -774,5 +781,19 @@ void callHelp (){
     printf("\n");
     char* help[1] = {"help"};
     get_builtin("help", help);
+    numRun++;
+    readline(lineIn);
+}
+
+void sfish_info(){
+    printf("\n");
+    printf("----Info----\n");
+    printf("help\nprt\n");
+    printf("----CTRL----\n");
+    printf("cd\nchclr\nchpmt\npwd\nexit\n");
+    printf("----Job Control----\n");
+    printf("bg\nfg\ndisown\njobs\n");
+    printf("----Number of Commands Run----\n%d\n", numRun);
+    printf("----Process Table----\n");
     readline(lineIn);
 }

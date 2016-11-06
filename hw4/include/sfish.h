@@ -62,3 +62,5 @@ void setPrompt();
 int readlineKeybinds();
 
 void callHelp();
+
+void sfish_info();
