@@ -1,13 +1,6 @@
 #include "sfish.h"
 
-/* BUILT-IN FUNCTIONS PSEUDOCODE */
-/* input = readline()
-if (builtin_func = get_builtin(input))
-    fork()
-    if child:
-        builtin_func()
-    else:
-        wait_for_child() */
+
 
 const char *built_in[11] = {"help", "cd", "pwd", "prt", "chpmt", "chclr", "jobs", "fg", "bg", "kill", "disown"};
 static char* lineIn;
@@ -32,24 +25,88 @@ static int userColor = 37;
 static int machineColor = 37;
 static int userBold = 0;
 static int machineBold = 0;
+static int bgFlag = 0; //flag to determine is process will be sent to background by &
 
 static char *fileIn; //the input redirect <
 static char *fileOut;//the output redirect >
 static int inFlag = 0; // boolean flag for whether there is an input file
 static int outFlag = 0; // boolean flag for whether there is an output file, set to 2 if writing to stderr
 
+
+void sigint_handler(int sig) /*SIGINT handler*/
+{
+    int child_status;
+    fflush(stdout);
+    printf("SIGINT received. Terminating process.\n");
+
+    waitpid(0, &child_status, WNOHANG);
+    exit(0);
+}
+
+
+void sigcont_handler(int sig) /*SIGCONT handler*/
+{   
+    printf("SIGCONT received. Continuing process.\n");
+    return;
+}
+
+void sigstp_handler(int sig) /*SIGSTP handler*/
+{
+    fflush(stdout);
+    printf("SIGSTP received. Pausing process.\n");
+    signal(SIGCONT, sigcont_handler); //enable signal continue handler
+    pause();
+}
+
+void sigchild_handler(int sig) /*SIGCHLD handler*/
+{
+    int olderrno = errno;
+    pid_t pid;
+    if ((pid = wait(NULL)) < 0)
+        
+        fprintf(stderr, "Wait error.\n");
+    
+    fprintf(stderr, "Handler reaped child %d\n", pid);
+    
+    errno = olderrno;
+}
+
+void sigchld_handler(int sig)
+{
+    int olderrno = errno;
+    sigset_t mask_all, prev_all;
+    pid_t pid;
+    sigfillset(&mask_all);
+    while ((pid = waitpid(-1, NULL, 0)) > 0) { /* Reap child */
+    sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+    //deletejob(pid); /* Delete the child from the job list */
+    sigprocmask(SIG_SETMASK, &prev_all, NULL);
+    }
+    if (errno != ECHILD)
+    ;//sio_error("waitpid error");
+    errno = olderrno;
+}
+
+
 int main(int argc, char** argv) {
     //DO NOT MODIFY THIS. If you do you will get a ZERO.
     rl_catch_signals = 0;
     //This is disable readline's default signal handlers, since you are going
     //to install your own.
+
     rl_startup_hook = (void*)readlineKeybinds;
+
+    //initializing signal handlers
+    signal(SIGINT, sigint_handler);
+    signal(SIGSTOP, sigstp_handler);
+    signal(SIGCHLD, sigchld_handler);
 
     char** args = malloc(200);
     memset(args, 0, 200);
 
     char *cmd;
     char *cmdCopy; //make a copy of the input command to manipulate
+    char *cmdPipe;
    // char *cmdExec; //the section to store the execution part of the input command
 
     fileIn = malloc(100); //the input redirect <
@@ -79,15 +136,26 @@ int main(int argc, char** argv) {
     setPrompt();
 
     while((cmd = readline(lineIn)) != NULL) {
+
         if (strlen(cmd)==0){}
         else {
 
             //parse the input command into a string array
             int i;
 
+            cmdPipe = strdup(cmd); //make copy of cmd to check for piping
+            cmdCopy = strdup(cmd); //make copy of cmd to check for i/o redirection
 
-            cmdCopy = strdup(cmd);
             numRun++;
+
+            //check for piping
+            char**sepCmds = malloc(200);
+            char* pipe = strchr(cmdPipe, '|');
+            //separate commands by piping
+            if(pipe){
+                pipe[0] = ' ';
+
+            }
 
             //find redirection
             char* fileInS = strchr(cmdCopy, '<');
@@ -146,6 +214,16 @@ int main(int argc, char** argv) {
             if (strcmp(args[0], "exit")==0)
                 break;
 
+            bgFlag = 0; //reset the background flag
+            //if the last argument is &, or the last character of the last argument is &
+            if (strcmp(args[i-1], "&")==0) {
+                bgFlag = 1;
+                args[i-1] = 0;
+            }
+            else if (args[i-1][strlen(args[i-1])-1]=='&') {
+                bgFlag= 1;
+                args[i-1][strlen(args[i-1])-1] = '\0';
+            }
             //All your debug print statments should be surrounded by this #ifdef
             //block. Use the debug target in the makefile to run with these enabled.
             /*#ifdef DEBUG
@@ -157,8 +235,11 @@ int main(int argc, char** argv) {
             #endif*/
             //You WILL lose points if your shell prints out garbage values.            
 
+
+
             //call binaries, first checks builtin, if that fails, try to exec 
             if(!get_builtin(cmd, args)) get_exec(cmd, args);
+            free(sepCmds);
         }
 
     }
@@ -168,6 +249,7 @@ int main(int argc, char** argv) {
     free(fileOut);
     free(cwd);
     free(cmdCopy);
+    free(cmdPipe);
     free(cmd);
     free(dir);
     free(hostName);
@@ -242,7 +324,11 @@ int get_builtin(char *cmd, char** args) {
                 
             }
             else {
-                wait(&status);
+                if (!bgFlag){ //if regular nonbackground process, wait for it to complete
+                    wait(&status);   
+                   
+                }
+             
                 if(outFlag){
                     memset(fileOut, 0, 100);
                     outFlag=0;
@@ -258,7 +344,11 @@ int get_builtin(char *cmd, char** args) {
                 sfish_pwd();
             }
             else {
-                wait(&status);
+                if (!bgFlag){ //if regular nonbackground process, wait for it to complete
+                    wait(&status);    
+               
+                }
+              
                 if(outFlag){
                     memset(fileOut, 0, 100);
                     outFlag=0;
@@ -271,7 +361,11 @@ int get_builtin(char *cmd, char** args) {
                 sfish_prt(status);
             }
             else {
-                wait(&status);
+                if (!bgFlag){ //if regular nonbackground process, wait for it to complete
+                    wait(&status);    
+                 
+                }
+            
                 if(outFlag){
                     memset(fileOut, 0, 100);
                     outFlag =0;
@@ -290,7 +384,11 @@ int get_builtin(char *cmd, char** args) {
                 sfish_jobs(args);
             }
             else {
-                wait(&status);
+                if (!bgFlag){ //if regular nonbackground process, wait for it to complete
+                    wait(&status);    
+               
+                }
+          
                 if(outFlag){
                     memset(fileOut, 0, 100);
                     outFlag =0;
@@ -367,9 +465,8 @@ int get_exec(char *cmd, char** args){
 
     int child_id;
 
-    //TO DO: use stat system call to check file
-    
-    if ((child_id=fork())==0){
+    if ((child_id=fork())==0){  
+
         if(inFlag) inRedir();
         if(outFlag) outRedir();
 
@@ -391,7 +488,12 @@ int get_exec(char *cmd, char** args){
     }
 
     else {
-        wait(&status);
+        if (!bgFlag){ //if regular nonbackground process, wait for it to complete
+            wait(&status);    
+
+        }
+      
+
         if(inFlag){
             memset(fileIn, 0, 100);
             inFlag = 0;
@@ -407,7 +509,9 @@ int get_exec(char *cmd, char** args){
 }
 
 void sfish_help(){
-    printf("%s", help);
+    for (int i = 0; help[i]!=NULL; i++)
+        printf("%s", help[i]);
+
     exit(EXIT_SUCCESS);
 }
 
@@ -626,6 +730,35 @@ void sfish_bg(char **args){
 
 void sfish_kill(char **args){
 
+    pid_t pid;
+    int signal;
+
+    char* arg1;
+    char* arg2;
+
+    if ((arg1 = args[1]) != NULL){ 
+        if((arg2 = args[2]) != NULL) {
+            pid = atoi(arg2);
+        }
+        else {
+            pid = atoi(arg1);
+        }
+    }
+    else {
+        fprintf(stderr, "Missing arguments for kill command.\n");
+        return;
+    }
+
+    signal = atoi(args[1]);
+    if (signal >= 2 && signal <= 31){
+        ;
+    }
+    else {
+        signal = 15;
+
+    }
+    kill(pid, signal);
+
 }
 
 void sfish_disown(char **args){
@@ -775,6 +908,10 @@ int readlineKeybinds(){
     rl_bind_keyseq("\\C-p", sfishInfo);
 
     return 1;
+}
+
+void stop_fgp(){
+    kill(getpid(), SIGSTOP);
 }
 
 void callHelp (){

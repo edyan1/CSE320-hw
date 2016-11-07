@@ -3,6 +3,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -11,9 +12,24 @@
 #include <fcntl.h>
 
 
-const char* help = "help menu:\n blah blah\n some other stuff\n and some more stuff\n";
+const char* help[11] = {
+	"SFISH Help menu:\n",
+	"cd [dir]\t\t\tGo to directory\n",
+	"chclr [option] [color] [0|1]\tChange prompt color\n",
+	"chpmt [option] [0|1]\t\tChange prompt settings\n",
+	"exit\t\t\t\tExit shell\n",
+	"help\t\t\t\tPrint this menu\n",
+	"jobs\t\t\t\tDisplay job list\n",
+	"kill [signal] [process id]\tSend signal to given process\n",
+	"prt\t\t\t\tPrint status of last exited command\n",
+	"pwd\t\t\t\tPrint current working directory\n",
+	"quit\t\t\t\tExit shell\n"
+};
 
 
+
+typedef void (handler_t)(int);
+handler_t* signal(int signum, handler_t *handler);
 
 //input redirection method
 void inRedir();
@@ -61,6 +77,14 @@ void setPrompt();
 
 int readlineKeybinds();
 
+void stop_fgp();
+
 void callHelp();
 
 void sfish_info();
+
+void sigint_handler(int sig); /*SIGINT handler*/
+
+void sigstp_handler(int sig);
+
+void sigcont_handler(int sig);
