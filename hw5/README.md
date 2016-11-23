@@ -1,4 +1,4 @@
 # Lord of the Threads
 
-## Author:
-### ID:
+## Author: Edwin Yan
+### ID: 109219167
