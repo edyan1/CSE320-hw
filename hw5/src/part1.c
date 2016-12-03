@@ -13,12 +13,12 @@ struct result {
     double yearAvg;
     char* countryMost;
     int users;
-    int pid;
+    int tid;
 };
 
 struct t_args{ //thread arugments
     FILE* file;
-    int pid;
+    int tid;
 };
 
 static struct result* resPtr;
@@ -56,7 +56,7 @@ int part1(){
            
             //store the filename and thread id of each generated thread 
             results[i].name = strdup((*filesList)->d_name);
-            results[i].pid = i;
+            results[i].tid = i;
            
             //get pathname to open file
             char* path = malloc(256);
@@ -66,7 +66,7 @@ int part1(){
             FILE *f = fopen(path,"r"); //file to open
             //create thread
             struct t_args* args = malloc(sizeof(struct t_args));
-            args->pid = i;
+            args->tid = i;
             args->file = f;
             
             if((test=pthread_create(&tid[i], NULL, map, args))!=0) break;
@@ -97,7 +97,7 @@ static void* map(void* v){
 
     struct t_args mapArgs;
     mapArgs.file = ((struct t_args*)v)->file;
-    mapArgs.pid = ((struct t_args*)v)->pid;
+    mapArgs.tid = ((struct t_args*)v)->tid;
     free(v);
     
     //init variables for storing read in file data
@@ -227,8 +227,8 @@ static void* map(void* v){
 
     //printf("Years Avg:%lf\tDur Avg:%lf\n",yearsAvg, durAvg);
    
-    resPtr[mapArgs.pid].durAvg = durAvg;
-    resPtr[mapArgs.pid].yearAvg = yearsAvg;
+    resPtr[mapArgs.tid].durAvg = durAvg;
+    resPtr[mapArgs.tid].yearAvg = yearsAvg;
     
     free(ip);
     free(country);
