@@ -1,11 +1,10 @@
 #include "lott.h"
 #include <dirent.h>
 #include <time.h>
-#include <semaphore.h>
 
 
 static void* map(void*); //originall returned void*
-static double reduce(void*);
+static void* reduce(void*);
 
 //struct to store the result of each file
 struct result {
@@ -42,17 +41,14 @@ int part1(){
     while (readdir(data)) fileCount++;
 
     pthread_t tid[fileCount]; //create array of thread id's equal to num files
-    int test;
+    int test; //variable to hold thread return value
     
     struct dirent* file = malloc(sizeof(struct dirent));
     struct dirent**filesList = malloc(sizeof(struct dirent) * fileCount);
     closedir(data);
 
-
     struct result results[fileCount];
     resPtr = results;
-
-    
 
     for (int i = 0; i < fileCount; i++){
         readErr = readdir_r(data2, file, filesList);
@@ -86,8 +82,8 @@ int part1(){
   
     }
     
-    double reduceResult = reduce(NULL);
-    printf("Result: %lf, %s\n", reduceResult, resultName);
+    double* reduceResult = reduce(NULL);
+    printf("Result: %lf, %s\n", *reduceResult, resultName);
     
 
     closedir(data2);
@@ -241,15 +237,15 @@ static void* map(void* v){
     return NULL;
 }
 
-static double reduce(void* v){
+static void* reduce(void* v){
 
     //find max avg duration
 
     if (!strcmp(QUERY_STRINGS[current_query], "A")){
-        double maxAvgDur = 0;
-        for (int i = 0; i < fileCount; i++){
-            if (resPtr[i].durAvg > maxAvgDur){
-                maxAvgDur = resPtr[i].durAvg;
+        void* maxAvgDur = &resPtr[2].durAvg;
+        for (int i = 3; i < fileCount; i++){
+            if (resPtr[i].durAvg > *(double*)maxAvgDur){
+                maxAvgDur = &resPtr[i].durAvg;
                 resultName = resPtr[i].name;
             } 
             
@@ -260,10 +256,10 @@ static double reduce(void* v){
 
     //find min avg duration
     else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-        double minAvgDur = resPtr[2].durAvg;
+        void* minAvgDur = &resPtr[2].durAvg;
         for (int i = 3; i < fileCount; i++){ //skip the "." and ".." entries
-            if (resPtr[i].durAvg < minAvgDur) {
-                minAvgDur = resPtr[i].durAvg;
+            if (resPtr[i].durAvg < *(double*)minAvgDur) {
+                minAvgDur = &resPtr[i].durAvg;
                 resultName = resPtr[i].name;
             }
         }
@@ -273,15 +269,16 @@ static double reduce(void* v){
 
     //find max avg users per year
     else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-        double maxYearsAvg = 0;
-        for (int i = 0; i < fileCount; i++){
-            if (resPtr[i].yearAvg > maxYearsAvg){
-                maxYearsAvg = resPtr[i].yearAvg;
+        void* maxYearsAvg = &resPtr[2].yearAvg;
+        resultName = resPtr[2].name;
+        for (int i = 3; i < fileCount; i++){
+            if (resPtr[i].yearAvg > *(double*)maxYearsAvg){
+                maxYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;
             } 
-            else if (resPtr[i].yearAvg == maxYearsAvg){
-                if (resultName != NULL && strcmp(resPtr[i].name, resultName) < 0) {
-                    maxYearsAvg = resPtr[i].yearAvg;
+            else if (resPtr[i].yearAvg == *(double*)maxYearsAvg){
+                if (strcmp(resPtr[i].name, resultName) < 0) {
+                    maxYearsAvg = &resPtr[i].yearAvg;
                     resultName = resPtr[i].name;
                 }
             } 
@@ -291,15 +288,16 @@ static double reduce(void* v){
     }
     //find min avg users per year
     else if (!strcmp(QUERY_STRINGS[current_query], "D")){
-        double minYearsAvg = resPtr[2].yearAvg;
+        void* minYearsAvg = &resPtr[2].yearAvg;
+        resultName = resPtr[2].name;
         for (int i = 2; i < fileCount; i++){ //skip "." and ".." entries
-            if (resPtr[i].yearAvg < minYearsAvg){
-                minYearsAvg = resPtr[i].yearAvg;
+            if (resPtr[i].yearAvg < *(double*)minYearsAvg){
+                minYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;
             }
-            else if (resPtr[i].yearAvg == minYearsAvg){
-                if (resultName != NULL && strcmp(resPtr[i].name, resultName) < 0) {
-                    minYearsAvg = resPtr[i].yearAvg;
+            else if (resPtr[i].yearAvg == *(double*)minYearsAvg){
+                if (strcmp(resPtr[i].name, resultName) < 0) {
+                    minYearsAvg = &resPtr[i].yearAvg;
                     resultName = resPtr[i].name;
                 }
             }  
