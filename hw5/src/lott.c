@@ -64,7 +64,7 @@ int main(int argc, char const* argv[]) {
         } break;
         case '5': {
             current_part = PART5;
-            ret = part2(nthreads);
+            ret = part5(nthreads);
         } break;
         default: {
             ret = 0;

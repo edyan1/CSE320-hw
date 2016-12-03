@@ -10,10 +10,11 @@ int part2(size_t nthreads) {
     reduce(NULL);
     /* DELETE THIS: THIS IS TO QUIET COMPILER ERRORS */
 
-    printf(
-        "Part: %s\n"
-        "Query: %s\n",
-        PART_STRINGS[current_part], QUERY_STRINGS[current_query]);
+    printf("Part: %s\nQuery: %s\n", PART_STRINGS[current_part], QUERY_STRINGS[current_query]);
+    if (nthreads < 1){
+        fprintf(stderr, "Error: Must be non-zero number of threads.\n");
+        return EXIT_FAILURE;
+    }
 
     return 0;
 }
