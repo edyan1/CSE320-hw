@@ -40,7 +40,6 @@ int part2(size_t nthreads) {
         return 1;
     }    
 
-    printf("Part: %s\nQuery: %s\n", PART_STRINGS[current_part], QUERY_STRINGS[current_query]);
     if (nthreads < 1){
         fprintf(stderr, "Error: Must be non-zero number of threads.\n");
         return EXIT_FAILURE;
@@ -92,7 +91,7 @@ int part2(size_t nthreads) {
     closedir(data2);
 
     //calculate files per thread
-    //round number of files up to nearest multiple of nthreads so that it divides evenly (if necessary)
+    if (nthreads > fileCount) nthreads = fileCount;
     filesPerThread = fileCount/nthreads;
     filesLeft = fileCount%nthreads;
 
@@ -115,8 +114,9 @@ int part2(size_t nthreads) {
     pthread_mutex_destroy(&lock); //destroy the lock
 
     double* reduceResult = reduce(NULL);
-    printf("Result: %lf, %s\n", *reduceResult, resultName);
-    
+
+    printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
+        PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
 
     
     free(file);

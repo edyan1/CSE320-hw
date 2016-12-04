@@ -33,9 +33,6 @@ int part1(){
     
     DIR *data = opendir(DATA_DIR);
     DIR *data2 = opendir(DATA_DIR);
-    
-
-    printf("Part: %s\n""Query: %s\n", PART_STRINGS[current_part], QUERY_STRINGS[current_query]);
 
     /*find number of files and in data directory and set our dirent array to appropriate size */
     while (readdir(data)) fileCount++;
@@ -82,7 +79,9 @@ int part1(){
     }
     
     double* reduceResult = reduce(NULL);
-    printf("Result: %lf, %s\n", *reduceResult, resultName);
+
+    printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
+        PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
     
 
     closedir(data2);
