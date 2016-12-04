@@ -77,9 +77,8 @@ int part1(){
 
     }
 
-    for (int i = 0; i < fileCount; i++){
-        pthread_join(tid[i], NULL);
-  
+    for (int j = 0; j < fileCount; j++){
+        pthread_join(tid[j], NULL);
     }
     
     double* reduceResult = reduce(NULL);
