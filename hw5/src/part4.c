@@ -40,13 +40,13 @@ int part4(size_t nthreads) {
 
     //initialize locks
     if (pthread_mutex_init(&lock, NULL) != 0)
-    { //initialize the lock
+    { //initialize the lock for map function counter
         printf("\n lock mutex init failed\n");
         return 1;
     }
 
     if (pthread_mutex_init(&writeLock, NULL) != 0)
-    { //initialize the readlock
+    { //initialize the write lock for writing to and reading from buffer
         printf("\n readLock mutex init failed\n");
         return 1;
     }    
@@ -93,10 +93,6 @@ int part4(size_t nthreads) {
                 path = strcat(path, "/");
                 path = strcat(path, (*filesList)->d_name);
                 results[a].pathname = strdup(path);
-
-                //FILE *f = fopen(path,"r"); //file to open
-                    
-                //if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
                 free(path);
                 a++;
             }
@@ -138,7 +134,7 @@ int part4(size_t nthreads) {
     pthread_cancel(reduceId);
 
     pthread_mutex_destroy(&lock); //destroy the lock
-    pthread_mutex_destroy(&writeLock); //destroy the readlock
+    pthread_mutex_destroy(&writeLock); //destroy the writelock
 
     //double* reduceResult = reduce(NULL);
 
@@ -296,13 +292,10 @@ static void* map(void* v){
 
     }*/
 
-    //printf("Years Avg:%lf\tDur Avg:%lf\n",yearsAvg, durAvg);
-   
     resPtr[fileNum].durAvg = durAvg;
     resPtr[fileNum].yearAvg = yearsAvg;
     filesMapped++;
     pthread_mutex_unlock(&writeLock); //unlock for reduce to read
-    //pthread_cond_signal(&readCond); //signal reduce that it is able to read
     free(ip);
     free(country);
     fclose(f);
@@ -329,9 +322,7 @@ static void* reduce(void* v){
                 } 
                 
             }
-            
-            //return maxAvgDur;
-           
+
             reduceResult = maxAvgDur;
         }
 
@@ -345,9 +336,7 @@ static void* reduce(void* v){
                     resultName = resPtr[i].name;
                 }
             }
-        
-            //return minAvgDur;
-           
+         
             reduceResult = minAvgDur;
         }
 
@@ -367,9 +356,7 @@ static void* reduce(void* v){
                     }
                 } 
             }
-     
-            //return maxYearsAvg;
-     
+
             reduceResult = maxYearsAvg;
         }
         //find min avg users per year
@@ -389,8 +376,6 @@ static void* reduce(void* v){
                 }  
             }
 
-            //return minYearsAvg;
-      
             reduceResult = minYearsAvg;
         }
          //unlock
