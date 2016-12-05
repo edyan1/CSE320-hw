@@ -5,28 +5,10 @@
 static void* map(void*);
 static void* reduce(void*);
 
-/* pseudocode: reader priority
-lock-for-read operation:  (reduce)
-input: mutex m, condition variable c, integer r (flag for reader), flag w (writer wating)
-lock m (blocking)
-while w:
-    pthread_cond_wait (c, m)
-increment r
-unlock m
-
-lock-for-write operation: (map)
-lock m (blocking)
-while (w or r > 0)
-    pthread_cond_wait (c, m)
-set w to true
-unlock m
-*/
-
 //struct to store the result of each file
 struct result {
     char* name;
-    double durAvg;
-    double yearAvg;
+   
     char* countryMost;
     int users;
     int fid;
@@ -46,23 +28,28 @@ pthread_mutex_t writeLock; //mutex lock for from writing
 pthread_mutex_t lock; //mutex lock for reader and writers
 pthread_cond_t readCond; //condition to let reduce know its ok to read
 
+static int wFlag = 0;
+static int rFlag = 0;
+
 static int fileCount = 0; //number of files in directory 
 static int fileCountMap; //counter used by map function
+static int filesMapped = 0;
 static int filesPerThread; //counter to keep track of how many files each thread has to scan
 static int filesLeft; //and the left over files to be distributed among the threads
 
+static FILE* mapred;
 
 int part3(size_t nthreads) {
 
     //initialize locks
     if (pthread_mutex_init(&lock, NULL) != 0)
-    { //initialize the lock
+    { //initialize the lock for map function counter
         printf("\n lock mutex init failed\n");
         return 1;
     }
 
     if (pthread_mutex_init(&writeLock, NULL) != 0)
-    { //initialize the readlock
+    { //initialize the write lock for writing to and reading from buffer
         printf("\n readLock mutex init failed\n");
         return 1;
     }    
@@ -84,9 +71,6 @@ int part3(size_t nthreads) {
             strcmp(dataRead->d_name, "..") != 0
         ) fileCount++;
     }
-
-    pthread_t tid[nthreads]; //create array of thread id's equal to num files
-    int test; //variable to hold thread return value
     
     struct dirent* file = malloc(sizeof(struct dirent));
     struct dirent**filesList = malloc(sizeof(struct dirent) * fileCount);
@@ -112,10 +96,6 @@ int part3(size_t nthreads) {
                 path = strcat(path, "/");
                 path = strcat(path, (*filesList)->d_name);
                 results[a].pathname = strdup(path);
-
-                //FILE *f = fopen(path,"r"); //file to open
-                    
-                //if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
                 free(path);
                 a++;
             }
@@ -126,12 +106,19 @@ int part3(size_t nthreads) {
 
     closedir(data2);
 
-    //calculate files per thread
-    if (nthreads > fileCount) nthreads = fileCount;
-    filesPerThread = fileCount/nthreads;
-    filesLeft = fileCount%nthreads;
+    //open the temp file for writing/reading
+    mapred = fopen("mapred.tmp", "w+");
 
-    for (int i = 0; i < nthreads; i++){
+    //calculate files per thread
+    int numT = nthreads; //number of threads user asked
+    if (numT > fileCount) numT = fileCount;
+    filesPerThread = fileCount/numT;
+    filesLeft = fileCount%numT;
+
+    pthread_t tid[numT]; //create array of thread id's equal to num files
+    int test; //variable to hold thread return value
+
+    for (int i = 0; i < numT; i++){
         
         //create thread
         struct t_args* args = malloc(sizeof(struct t_args));
@@ -144,16 +131,18 @@ int part3(size_t nthreads) {
         if((test=pthread_create(&tid[i], NULL, map, args))!=0) break;
     }
 
+    
+
     pthread_t reduceId; //store the thread id of the reduce thread
     if(pthread_create(&reduceId, NULL, reduce, NULL) != 0) return EXIT_FAILURE;
 
-    for (int j = 0; j < nthreads; j++){
+    for (int j = 0; j < numT; j++){
         pthread_join(tid[j], NULL);
     }
     pthread_cancel(reduceId);
 
     pthread_mutex_destroy(&lock); //destroy the lock
-    pthread_mutex_destroy(&writeLock); //destroy the readlock
+    pthread_mutex_destroy(&writeLock); //destroy the writelock
 
     //double* reduceResult = reduce(NULL);
 
@@ -163,7 +152,8 @@ int part3(size_t nthreads) {
     
     free(file);
     free(filesList);
-
+    fclose(mapred);
+    unlink("mapred.tmp");
     return 0;
 }
 
@@ -184,6 +174,12 @@ static void* map(void* v){
     fileCountMap--;
     numScans--;
     pthread_mutex_unlock(&lock);//unlock
+
+    pthread_mutex_lock(&writeLock); //lock while writing so reduce won't read
+    //must wait for read to lower flag before writing (reader has priority)
+    while (wFlag == 1 || rFlag == 1) pthread_cond_wait(&readCond,&writeLock);
+
+    wFlag = 1;
 
     //init variables for storing read in file data
     long timestamp;
@@ -230,7 +226,7 @@ static void* map(void* v){
     //char** countries = calloc(100000,4);
     int countriesCount = 0;
     */
-
+    
     while (fscanf(f, "%ld,%15[^,],%d,%s\n", &timestamp, ip, &dur, country) != EOF) {
         //printf("%ld\t%s\t%d\t%s\n", timestamp, ip, dur, country);
         linecount++;
@@ -266,7 +262,7 @@ static void* map(void* v){
 
 
     }
-
+    
     //get the duration average of file
     if(linecount > 0) durAvg = (double)durTotal/linecount;
     else durAvg = 0;
@@ -310,12 +306,41 @@ static void* map(void* v){
 
     }*/
 
-    //printf("Years Avg:%lf\tDur Avg:%lf\n",yearsAvg, durAvg);
-    pthread_mutex_lock(&writeLock); //lock while writing so reduce won't read
-    resPtr[fileNum].durAvg = durAvg;
-    resPtr[fileNum].yearAvg = yearsAvg;
+    //resPtr[fileNum].durAvg = durAvg;
+    //resPtr[fileNum].yearAvg = yearsAvg;
+    char* writeString = calloc(200, 1);
+    char* durAvgBuf = malloc(30);
+    char* yearAvgBuf = malloc(30);
+    writeString = strdup(resPtr[fileNum].name);
+    snprintf(durAvgBuf, 30, "%lf", durAvg);
+    snprintf(yearAvgBuf, 30, "%lf", yearsAvg);
+
+    
+    fputs(writeString, mapred);
+    fputs("\t", mapred);
+    fputs(durAvgBuf, mapred);
+    fputs("\t", mapred);
+    fputs(yearAvgBuf, mapred);
+    fputs("\n", mapred);
+    
+    if (fileNum==0) {
+        //last file being written
+        char eof = EOF;
+        fputc(eof, mapred); //write EOF char onto file
+    }
+
+
+    fflush(mapred);
+    filesMapped++;
+    free(writeString);
+    free(durAvgBuf);
+    free(yearAvgBuf);
+
+    //unlocking:
+    wFlag = 0;
+    pthread_cond_broadcast(&readCond);
     pthread_mutex_unlock(&writeLock); //unlock for reduce to read
-    pthread_cond_signal(&readCond); //signal reduce that it is able to read
+
     free(ip);
     free(country);
     fclose(f);
@@ -326,98 +351,113 @@ static void* map(void* v){
 
 static void* reduce(void* v){
      //find max avg duration
-    while(1){
-
-        pthread_mutex_lock(&writeLock); 
-        //lock, then wait for a writer to give it the signal before reading
-        //gives writers priority
-        while (fileCountMap > 0){
-            pthread_cond_wait(&readCond, &writeLock);
-        } 
-
+    
+    while(1){ //contains usleep function at end of each loop iteration to give writers priority
         
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,NULL); //set uncancellable
+        pthread_mutex_lock(&writeLock); 
+        while (wFlag == 1) pthread_cond_wait(&readCond, &writeLock);
+        rFlag = 1;
+
+        char* fileName = malloc(256);
+        double avgDur;
+        double avgYear;
+        double maxDur = 0;
+        double minDur;
+        double maxYear = 0;
+        double minYear;
+        
+        FILE* reduce = fopen("mapred.tmp", "r");
+
+        fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &minDur, &minYear);
+        ;
+        maxDur = minDur;
+        maxYear = minYear;
+        resultName = strdup(fileName);
+        
+        while (fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &avgDur, &avgYear) != EOF){
+            
+            if (!strcmp(QUERY_STRINGS[current_query], "A")){
+                if (avgDur > maxDur) {
+                    maxDur = avgDur;
+                    resultName = strdup(fileName);
+                }
+            }
+
+            else if (!strcmp(QUERY_STRINGS[current_query], "B")){
+                if (avgDur < minDur) {
+                    minDur = avgDur;
+                    resultName = strdup(fileName);
+                }
+            }
+
+            else if (!strcmp(QUERY_STRINGS[current_query], "C")){
+                if (avgYear > maxYear) {
+                    maxYear = avgYear;
+                    resultName = strdup(fileName);
+                }
+                else if (avgYear == maxYear){
+                    if (strcmp(fileName, resultName) < 0) {
+                        maxYear = avgYear;
+                        resultName = strdup(fileName);
+                    }
+                }
+            }
+    
+            else if (!strcmp(QUERY_STRINGS[current_query], "D")){    
+                if (avgYear < minYear) {
+                    minYear = avgYear;
+                    resultName = strdup(fileName);
+                }
+                else if (avgYear == minYear){
+                    if (strcmp(fileName, resultName) < 0) {
+                        minYear = avgYear;
+                        resultName = strdup(fileName);
+                    }
+                }
+            }
+        }
+    
+        fflush(reduce);
+        free(fileName);
+        fclose(reduce);
 
         if (!strcmp(QUERY_STRINGS[current_query], "A")){
-            void* maxAvgDur = &(resPtr[0].durAvg);
-            resultName = resPtr[0].name;
-            for (int i = 1; i < fileCount; i++){
-                if (resPtr[i].durAvg > *(double*)maxAvgDur){
-                    maxAvgDur = &resPtr[i].durAvg;
-                    resultName = resPtr[i].name;
-                } 
-                
-            }
-            
-            //return maxAvgDur;
-           
-            reduceResult = maxAvgDur;
+         
+            reduceResult = &maxDur;
         }
 
         //find min avg duration
         else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-            void* minAvgDur = &(resPtr[0].durAvg);
-            resultName = resPtr[0].name;
-            for (int i = 1; i < fileCount; i++){ //skip the "." and ".." entries
-                if (resPtr[i].durAvg < *(double*)minAvgDur) {
-                    //printf("new mvd: %lf\t%s\n", resPtr[i].durAvg, resPtr[i].name);
-                    minAvgDur = &resPtr[i].durAvg;
-                    resultName = resPtr[i].name;
-                }
-            }
-        
-            //return minAvgDur;
-           
-            reduceResult = minAvgDur;
+       
+         
+            reduceResult = &minDur;
         }
 
         //find max avg users per year
         else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-            void* maxYearsAvg = &(resPtr[0].yearAvg);
-            resultName = resPtr[0].name;
-            for (int i = 1; i < fileCount; i++){
-                if (resPtr[i].yearAvg > *(double*)maxYearsAvg){
-                    maxYearsAvg = &resPtr[i].yearAvg;
-                    resultName = resPtr[i].name;
-                } 
-                else if (resPtr[i].yearAvg == *(double*)maxYearsAvg){
-                    if (strcmp(resPtr[i].name, resultName) < 0) {
-                        maxYearsAvg = &resPtr[i].yearAvg;
-                        resultName = resPtr[i].name;
-                    }
-                } 
-            }
-     
-            //return maxYearsAvg;
-     
-            reduceResult = maxYearsAvg;
+
+
+            reduceResult = &maxYear;
         }
         //find min avg users per year
         else if (!strcmp(QUERY_STRINGS[current_query], "D")){
-            void* minYearsAvg = &resPtr[0].yearAvg;
-            resultName = resPtr[0].name;
-            for (int i = 1; i < fileCount; i++){ //skip "." and ".." entries
-                if (resPtr[i].yearAvg < *(double*)minYearsAvg){
-                    minYearsAvg = &resPtr[i].yearAvg;
-                    resultName = resPtr[i].name;
-                }
-                else if (resPtr[i].yearAvg == *(double*)minYearsAvg){
-                    if (strcmp(resPtr[i].name, resultName) < 0) {
-                        minYearsAvg = &resPtr[i].yearAvg;
-                        resultName = resPtr[i].name;
-                    }
-                }  
-            }
-
-            //return minYearsAvg;
-      
-            reduceResult = minYearsAvg;
+        
+            reduceResult = &minYear;
         }
          //unlock
         //country with most users
         //else return 0;
+      
+        int fm = filesMapped;
         
-        pthread_mutex_unlock(&writeLock);
-        usleep(10000);
+        if (fm == fileCount){//if no more files to map, then set cancellable
+            pthread_setcancelstate(PTHREAD_CANCEL_ENABLE,NULL);
+        }
+        rFlag = 0;
+        pthread_cond_broadcast(&readCond);
+        pthread_mutex_unlock(&writeLock); //unlock
+        usleep(3000); //slight microsleep to let writers write
     }
 
   return NULL;
