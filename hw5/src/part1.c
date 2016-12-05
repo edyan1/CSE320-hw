@@ -16,6 +16,12 @@ struct result {
     int tid;
 };
 
+//init struct for storing country data
+struct reduceCountries {
+    char* code;
+    int visits;
+};
+
 struct t_args{ //thread arugments
     FILE* file;
     int tid;
@@ -23,6 +29,7 @@ struct t_args{ //thread arugments
 
 static struct result* resPtr;
 static char* resultName;
+static struct reduceCountries* queryE;
 
 static int fileCount = 0; //number of files in directory 
 //static sem_t mutex;
@@ -88,10 +95,16 @@ int part1(){
         pthread_join(tid[j], NULL);
     }
     
-    double* reduceResult = reduce(NULL);
-
-    printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
+    if (!strcmp(QUERY_STRINGS[current_query], "E")){
+        int* reduceResult = reduce(NULL);
+        printf("Part: %s\n""Query: %s\nResult: %d, %s\n", 
         PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
+    }
+    else {
+        double* reduceResult = reduce(NULL);   
+        printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
+            PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
+    }
     
 
     closedir(data2);
@@ -133,26 +146,19 @@ static void* map(void* v){
         int visits;
     };
 
-
-
     //initialize country visit counting struct
-    /*
+ 
     struct count counts[10];
     for (int r=0; r<10; r++){
         counts[r].code = NULL;
         counts[r].visits = 0;
     }
     
-
-    int countryCounter = 0;
-    */
-    char* country = malloc(3);
-    /*
-    char* countries= calloc(100000,3);
-    char* cPtr = countries; //store the address
-    //char** countries = calloc(100000,4);
-    int countriesCount = 0;
-    */
+    int countryFlagged;
+    //int countryCounter = 0;
+ 
+    char* country = malloc(5);
+    
 
     while (fscanf(mapArgs.file, "%ld,%15[^,],%d,%s\n", &timestamp, ip, &dur, country) != EOF) {
         //printf("%d\t%s\t%d\t%s\n", timestamp, ip, dur, country);
@@ -162,31 +168,32 @@ static void* map(void* v){
         year = localtime_r(timePtr, time)->tm_year;
         years[year-70] += 1;
 
-        /*/store every country code into array
-        strncpy(countries, country, 3);
-        countriesCount++;
-        countries+=3;
-        */ /*
-        int exists = 0;
-        for (int s=0; s<10; s++){
-            if (counts[s].code!=NULL && !strcmp(counts[s].code, country)) exists = 1;
+        /*
+        As countries are read in, add the name of it to array of countries (up to 10)
+        if it does not exist in that array, add it to first empty slot
+        if it does, add a count to userNum array
+        */
+        if (!strcmp(QUERY_STRINGS[current_query], "E")){
 
-            //printf("storing %s\t", country);
-        }
-        if (exists){ 
-            for (int t=0; t<10; t++){
-                if (!strcmp(counts[t].code, country)) counts[t].visits++;
-                //printf("storing %s\t", country);
-            }
-            exists = 0;
-        }
-        else if (!exists){
-            for (int u=0; u<10; u++){
-                if (counts[u].code == NULL) counts[u].code = country;
-                //printf("storing %s\t", country);
-            }
-        }*/
+            countryFlagged = 0;
 
+            for (int i = 0; i < 10; i++){
+                if (counts[i].code != NULL && strcmp(country, counts[i].code)==0) {
+                    countryFlagged = 1;
+                    counts[i].visits++;
+                }
+            }
+            if (countryFlagged == 0) { //if not on the list, add it and set visits to 1
+                for (int j = 0; j < 10; j++){
+                    if (counts[j].code == NULL){
+                        counts[j].code = strdup(country);
+                        counts[j].visits = 1;
+                        break;
+                    }
+                    
+                }
+            }
+        }
 
     }
 
@@ -204,36 +211,27 @@ static void* map(void* v){
     if(yearCount > 0 )yearsAvg = yearsAvg/yearCount;
     else yearsAvg = 0;
 
-    //get the country code with max occurrence
-    /*
-    for (int c = 0; c < 300000; c=c+3){
-        countriesCount = 1;
-        for(int d = c+3; d < 300000; d=d+3){
-            if(!strcmp(cPtr+c,cPtr+d) && strcmp(cPtr+c,"\0")){
-                countriesCount++;
-                memset(cPtr+d, 0, 3);
+    if (!strcmp(QUERY_STRINGS[current_query], "E")){
+        int highestCountry = 0;
+        int mostUsers = counts[0].visits;
+        for (int k = 1; k < 10; k++){
+            if (counts[k].visits > mostUsers){
+                mostUsers = counts[k].visits;
+                highestCountry = k;
+            }
+            else if (counts[k].visits == mostUsers){
+                if(strcmp(counts[k].code, counts[highestCountry].code) < 0){
+                    mostUsers = counts[k].visits;
+                    highestCountry = k;
+                }
             }
         }
-        if(strcmp(cPtr+c,"\0")){
-            counts[countryCounter].code = cPtr+c;
-            counts[countryCounter].visits = countriesCount;
-            countryCounter++;
-        }
-    }*/
 
-    //sizeof(countries) == 8
-    /*
-    char* countryMost;
-    int mostVisits = 0;
-    for (int e = 0; e < 10; e++){
-        if(counts[e].visits > mostVisits){
-            mostVisits = counts[e].visits;
-            countryMost = counts[e].code;
-        }
+        resPtr[mapArgs.tid].countryMost = strdup(counts[highestCountry].code);
+        resPtr[mapArgs.tid].users = counts[highestCountry].visits;
+        //printf("country:%s\tusers:%d\n", resPtr[mapArgs.tid].countryMost, resPtr[mapArgs.tid].users);
 
-    }*/
-
-    //printf("Years Avg:%lf\tDur Avg:%lf\n",yearsAvg, durAvg);
+    }
    
     resPtr[mapArgs.tid].durAvg = durAvg;
     resPtr[mapArgs.tid].yearAvg = yearsAvg;
@@ -267,7 +265,7 @@ static void* reduce(void* v){
     else if (!strcmp(QUERY_STRINGS[current_query], "B")){
         void* minAvgDur = &resPtr[0].durAvg;
         resultName = resPtr[0].name;
-        for (int i = 1; i < fileCount; i++){ //skip the "." and ".." entries
+        for (int i = 1; i < fileCount; i++){
             if (resPtr[i].durAvg < *(double*)minAvgDur) {
                 minAvgDur = &resPtr[i].durAvg;
                 resultName = resPtr[i].name;
@@ -300,7 +298,7 @@ static void* reduce(void* v){
     else if (!strcmp(QUERY_STRINGS[current_query], "D")){
         void* minYearsAvg = &resPtr[0].yearAvg;
         resultName = resPtr[0].name;
-        for (int i = 1; i < fileCount; i++){ //skip "." and ".." entries
+        for (int i = 1; i < fileCount; i++){
             if (resPtr[i].yearAvg < *(double*)minYearsAvg){
                 minYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;
@@ -317,5 +315,79 @@ static void* reduce(void* v){
     }
 
     //country with most users
+    else if (!strcmp(QUERY_STRINGS[current_query], "E")){
+       
+
+        //initialize country visit counting struct
+     
+        struct reduceCountries rCount[10];
+        for (int r=0; r<10; r++){
+            rCount[r].code = NULL;
+            rCount[r].visits = 0;
+        }
+        queryE = rCount;
+
+        for (int i = 0; i < fileCount; i++){
+
+            int countryFlagged = 0; //flag to see if country has been included in array
+            //similar algorithm in map for sorting countries
+            
+            for (int j = 0; j < 10; j++){
+
+                if (rCount[j].code != NULL && strcmp(resPtr[i].countryMost, rCount[j].code)==0) {
+                    countryFlagged = 1;
+                    rCount[j].visits += resPtr[i].users;
+                }
+
+            }
+            if (countryFlagged == 0) { //if not on the list, add it and set visits to 1
+                for (int k = 0; k < 10; k++){
+                    if (rCount[k].code == NULL){
+                        rCount[k].code = strdup(resPtr[i].countryMost);
+                        rCount[k].visits = resPtr[i].users;
+                        break;
+                    }
+                    
+                }
+            }
+
+        }
+
+
+
+        int highestCountry = 0;
+        int mostUsers = rCount[0].visits;
+        for (int l = 1; l < 10; l++){
+
+            if (rCount[l].code!=NULL){
+                if (rCount[l].visits > mostUsers){
+                    mostUsers = rCount[l].visits;
+                    highestCountry = l;
+                }
+                else if (rCount[l].visits == mostUsers){
+                    if(strcmp(rCount[l].code, rCount[highestCountry].code) < 0){
+                        mostUsers = rCount[l].visits;
+                        highestCountry = l;
+                    }
+                }
+            }
+        }
+
+        resultName = strdup(rCount[highestCountry].code);
+        //void* users = &queryE[highestCountry].visits;
+
+        /*
+        //debugging
+        for (int m = 0; m < 10; m++){
+            if (rCount[m].code != NULL){
+                printf("%s\t%d\n", rCount[m].code, rCount[m].visits);
+            }
+        }
+        */
+
+        printf("%s\t%d\n",resultName, queryE[highestCountry].visits);
+
+        return &queryE[highestCountry].visits;
+    }
     else return 0;
 }
