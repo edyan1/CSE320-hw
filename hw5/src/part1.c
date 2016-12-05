@@ -34,8 +34,14 @@ int part1(){
     DIR *data = opendir(DATA_DIR);
     DIR *data2 = opendir(DATA_DIR);
 
+    struct dirent* dataRead;
     /*find number of files and in data directory and set our dirent array to appropriate size */
-    while (readdir(data)) fileCount++;
+    while ((dataRead = readdir(data))) {
+        if (
+            strcmp(dataRead->d_name, ".") != 0 &&
+            strcmp(dataRead->d_name, "..") != 0
+        ) fileCount++;
+    }
 
     pthread_t tid[fileCount]; //create array of thread id's equal to num files
     int test; //variable to hold thread return value
@@ -47,27 +53,31 @@ int part1(){
     struct result results[fileCount];
     resPtr = results;
 
-    for (int i = 0; i < fileCount; i++){
+    int a = 0;
+    while (a < fileCount){
         readErr = readdir_r(data2, file, filesList);
         if (readErr == 0 && *filesList!=NULL) {
            
-            //store the filename and thread id of each generated thread 
-            results[i].name = strdup((*filesList)->d_name);
-            results[i].tid = i;
-           
-            //get pathname to open file
-            char* path = malloc(256);
-            path = strcpy(path, DATA_DIR);
-            path = strcat(path, "/");
-            path = strcat(path, (*filesList)->d_name);
-            FILE *f = fopen(path,"r"); //file to open
-            //create thread
-            struct t_args* args = malloc(sizeof(struct t_args));
-            args->tid = i;
-            args->file = f;
-            
-            if((test=pthread_create(&tid[i], NULL, map, args))!=0) break;
-            free(path);
+            if (strcmp((*filesList)->d_name, ".")!=0 && strcmp((*filesList)->d_name, "..")!=0){   
+                //store the filename and thread id of each generated thread 
+                results[a].name = strdup((*filesList)->d_name);
+                results[a].tid = a;
+               
+                //get pathname to open file
+                char* path = malloc(256);
+                path = strcpy(path, DATA_DIR);
+                path = strcat(path, "/");
+                path = strcat(path, (*filesList)->d_name);
+                FILE *f = fopen(path,"r"); //file to open
+                //create thread
+                struct t_args* args = malloc(sizeof(struct t_args));
+                args->tid = a;
+                args->file = f;
+                
+                if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
+                free(path);
+                a++;
+            }
             
         }
         else break;
@@ -240,8 +250,9 @@ static void* reduce(void* v){
     //find max avg duration
 
     if (!strcmp(QUERY_STRINGS[current_query], "A")){
-        void* maxAvgDur = &resPtr[2].durAvg;
-        for (int i = 3; i < fileCount; i++){
+        void* maxAvgDur = &resPtr[0].durAvg;
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){
             if (resPtr[i].durAvg > *(double*)maxAvgDur){
                 maxAvgDur = &resPtr[i].durAvg;
                 resultName = resPtr[i].name;
@@ -254,8 +265,9 @@ static void* reduce(void* v){
 
     //find min avg duration
     else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-        void* minAvgDur = &resPtr[2].durAvg;
-        for (int i = 3; i < fileCount; i++){ //skip the "." and ".." entries
+        void* minAvgDur = &resPtr[0].durAvg;
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){ //skip the "." and ".." entries
             if (resPtr[i].durAvg < *(double*)minAvgDur) {
                 minAvgDur = &resPtr[i].durAvg;
                 resultName = resPtr[i].name;
@@ -267,9 +279,9 @@ static void* reduce(void* v){
 
     //find max avg users per year
     else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-        void* maxYearsAvg = &resPtr[2].yearAvg;
-        resultName = resPtr[2].name;
-        for (int i = 3; i < fileCount; i++){
+        void* maxYearsAvg = &resPtr[0].yearAvg;
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){
             if (resPtr[i].yearAvg > *(double*)maxYearsAvg){
                 maxYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;
@@ -286,9 +298,9 @@ static void* reduce(void* v){
     }
     //find min avg users per year
     else if (!strcmp(QUERY_STRINGS[current_query], "D")){
-        void* minYearsAvg = &resPtr[2].yearAvg;
-        resultName = resPtr[2].name;
-        for (int i = 2; i < fileCount; i++){ //skip "." and ".." entries
+        void* minYearsAvg = &resPtr[0].yearAvg;
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){ //skip "." and ".." entries
             if (resPtr[i].yearAvg < *(double*)minYearsAvg){
                 minYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;

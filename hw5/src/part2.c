@@ -49,11 +49,15 @@ int part2(size_t nthreads) {
     DIR *data = opendir(DATA_DIR);
     DIR *data2 = opendir(DATA_DIR);
 
+    struct dirent* dataRead;
     /*find number of files and in data directory and set our dirent array to appropriate size */
-    while (readdir(data)) fileCount++;
+    while ((dataRead = readdir(data))) {
+        if (
+            strcmp(dataRead->d_name, ".") != 0 &&
+            strcmp(dataRead->d_name, "..") != 0
+        ) fileCount++;
+    }
 
-    pthread_t tid[nthreads]; //create array of thread id's equal to num files
-    int test; //variable to hold thread return value
     
     struct dirent* file = malloc(sizeof(struct dirent));
     struct dirent**filesList = malloc(sizeof(struct dirent) * fileCount);
@@ -63,26 +67,29 @@ int part2(size_t nthreads) {
     resPtr = results;
 
     fileCountMap = fileCount;
-    
-    for (int a = 0; a < fileCount; a++){
+    int a=0;
+    while (a < fileCount){
         readErr = readdir_r(data2, file, filesList);
         if (readErr == 0 && *filesList!=NULL) {
-           
-            //store the filename and thread id of each generated thread 
-            results[a].name = strdup((*filesList)->d_name);
-            results[a].fid = a;
             
-            //get pathname to open file
-            char* path = malloc(256);
-            path = strcpy(path, DATA_DIR);
-            path = strcat(path, "/");
-            path = strcat(path, (*filesList)->d_name);
-            results[a].pathname = strdup(path);
-
-            //FILE *f = fopen(path,"r"); //file to open
+            if (strcmp((*filesList)->d_name, ".")!=0 && strcmp((*filesList)->d_name, "..")!=0){
+                //store the filename and thread id of each generated thread 
+                results[a].name = strdup((*filesList)->d_name);
+                results[a].fid = a;
                 
-            //if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
-            free(path);
+                //get pathname to open file
+                char* path = malloc(256);
+                path = strcpy(path, DATA_DIR);
+                path = strcat(path, "/");
+                path = strcat(path, (*filesList)->d_name);
+                results[a].pathname = strdup(path);
+
+                //FILE *f = fopen(path,"r"); //file to open
+                    
+                //if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
+                free(path);
+                a++;
+            }
             
         }
         else break;
@@ -91,11 +98,14 @@ int part2(size_t nthreads) {
     closedir(data2);
 
     //calculate files per thread
-    if (nthreads > fileCount) nthreads = fileCount;
-    filesPerThread = fileCount/nthreads;
-    filesLeft = fileCount%nthreads;
+    int numT = nthreads; //number of threads user requested
+    if (numT > fileCount) numT = fileCount;
+    filesPerThread = fileCount/numT;
+    filesLeft = fileCount%numT;
+    pthread_t tid[numT]; //create array of thread id's equal to num files
+    int test; //variable to hold thread return value
 
-    for (int i = 0; i < nthreads; i++){
+    for (int i = 0; i < numT; i++){
         
         //create thread
         struct t_args* args = malloc(sizeof(struct t_args));
@@ -108,7 +118,7 @@ int part2(size_t nthreads) {
         if((test=pthread_create(&tid[i], NULL, map, args))!=0) break;
     }
 
-    for (int j = 0; j < nthreads; j++){
+    for (int j = 0; j < numT; j++){
         pthread_join(tid[j], NULL);
     }
     pthread_mutex_destroy(&lock); //destroy the lock
@@ -284,8 +294,9 @@ static void* reduce(void* v){
      //find max avg duration
 
     if (!strcmp(QUERY_STRINGS[current_query], "A")){
-        void* maxAvgDur = &(resPtr[2].durAvg);
-        for (int i = 3; i < fileCount; i++){
+        void* maxAvgDur = &(resPtr[0].durAvg);
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){
             if (resPtr[i].durAvg > *(double*)maxAvgDur){
                 maxAvgDur = &resPtr[i].durAvg;
                 resultName = resPtr[i].name;
@@ -298,9 +309,9 @@ static void* reduce(void* v){
 
     //find min avg duration
     else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-        void* minAvgDur = &(resPtr[2].durAvg);
-        printf("mvd: %lf\n", *(double*)minAvgDur);
-        for (int i = 3; i < fileCount; i++){ //skip the "." and ".." entries
+        void* minAvgDur = &(resPtr[0].durAvg);
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){ //skip the "." and ".." entries
             if (resPtr[i].durAvg < *(double*)minAvgDur) {
                 //printf("new mvd: %lf\t%s\n", resPtr[i].durAvg, resPtr[i].name);
                 minAvgDur = &resPtr[i].durAvg;
@@ -313,9 +324,9 @@ static void* reduce(void* v){
 
     //find max avg users per year
     else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-        void* maxYearsAvg = &(resPtr[2].yearAvg);
-        resultName = resPtr[2].name;
-        for (int i = 3; i < fileCount; i++){
+        void* maxYearsAvg = &(resPtr[0].yearAvg);
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){
             if (resPtr[i].yearAvg > *(double*)maxYearsAvg){
                 maxYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;
@@ -332,9 +343,9 @@ static void* reduce(void* v){
     }
     //find min avg users per year
     else if (!strcmp(QUERY_STRINGS[current_query], "D")){
-        void* minYearsAvg = &resPtr[2].yearAvg;
-        resultName = resPtr[2].name;
-        for (int i = 2; i < fileCount; i++){ //skip "." and ".." entries
+        void* minYearsAvg = &resPtr[0].yearAvg;
+        resultName = resPtr[0].name;
+        for (int i = 1; i < fileCount; i++){ //skip "." and ".." entries
             if (resPtr[i].yearAvg < *(double*)minYearsAvg){
                 minYearsAvg = &resPtr[i].yearAvg;
                 resultName = resPtr[i].name;
