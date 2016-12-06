@@ -30,7 +30,7 @@ struct t_args{
 
 static struct result* resPtr;
 static char* resultName;
-static pthread_t* threadArray;
+
 static struct reduceCountries* queryE;
 pthread_mutex_t lock; //mutex lock for counter increment/decrement
 
@@ -111,7 +111,7 @@ int part2(size_t nthreads) {
     filesPerThread = fileCount/numT;
     filesLeft = fileCount%numT;
     pthread_t tid[numT]; //create array of thread id's equal to num files
-    threadArray = tid;
+
     int test; //variable to hold thread return value
 
     for (int i = 0; i < numT; i++){
@@ -136,14 +136,14 @@ int part2(size_t nthreads) {
         free(threadName);
     }
 
-    ///*debugging code to see if threads were named correctly
+    /*debugging code to see if threads were named correctly
     for (int k = 0; k < numT; k++){
         char* name = malloc(16);
         pthread_getname_np(tid[k], name, 16);
         printf("thread name: %s\n", name);
         free(name);
     }
-    //**********************/
+    **********************/
 
     for (int j = 0; j < numT; j++){
         pthread_join(tid[j], NULL);
@@ -284,7 +284,7 @@ static void* map(void* v){
 
         resPtr[fileNum].countryMost = strdup(counts[highestCountry].code);
         resPtr[fileNum].users = counts[highestCountry].visits;
-        //printf("country:%s\tusers:%d\n", resPtr[mapArgs.tid].countryMost, resPtr[mapArgs.tid].users);
+        //printf("country:%s\tusers:%d\n", resPtr[fileNum].countryMost, resPtr[fileNum].users);
 
     }
 
@@ -373,7 +373,6 @@ static void* reduce(void* v){
         return minYearsAvg;
     }
 
-    //country with most users
     //country with most users
     else if (!strcmp(QUERY_STRINGS[current_query], "E")){
        

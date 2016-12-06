@@ -15,7 +15,14 @@ struct result {
     char* pathname;
 };
 
-struct t_args{ //thread arugments
+//struct for storing country data
+struct reduceCountries {
+    char* code;
+    int visits;
+};
+
+//thread arugments
+struct t_args{ 
     int filesToScan;
     int tid;
 };
@@ -23,6 +30,7 @@ struct t_args{ //thread arugments
 static struct result* resPtr;
 static char* resultName;
 static double* reduceResult;
+//static struct reduceCountries* queryE;
 
 pthread_mutex_t writeLock; //mutex lock for from writing
 pthread_mutex_t lock; //mutex lock for reader and writers
@@ -128,13 +136,35 @@ int part3(size_t nthreads) {
             args->filesToScan += 1;
             filesLeft--;
         }
+        
+        //init variables for thread naming, create thread and name it
+        char* threadName = malloc(16);
+        threadName = strcpy(threadName, "map");
+        threadName += 3;
+        sprintf(threadName,"%d",i);
+        threadName -=3;
         if((test=pthread_create(&tid[i], NULL, map, args))!=0) break;
+        if((test=pthread_setname_np(tid[i],threadName))!=0) break;
+        free(threadName);
     }
 
-    
 
     pthread_t reduceId; //store the thread id of the reduce thread
     if(pthread_create(&reduceId, NULL, reduce, NULL) != 0) return EXIT_FAILURE;
+    else pthread_setname_np(reduceId, "reduce");
+
+    ///*debugging code to see if threads were named correctly
+    for (int k = 0; k < numT; k++){
+        char* name = malloc(16);
+        pthread_getname_np(tid[k], name, 16);
+        printf("thread name: %s\n", name);
+        free(name);
+    }
+    char* reduceName = malloc(16);
+    pthread_getname_np(reduceId, reduceName, 16);
+    printf("reduce name: %s\n", reduceName);
+    free(reduceName);
+    //**********************/
 
     for (int j = 0; j < numT; j++){
         pthread_join(tid[j], NULL);

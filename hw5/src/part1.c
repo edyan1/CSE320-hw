@@ -33,7 +33,6 @@ static char* resultName;
 static struct reduceCountries* queryE;
 
 static int fileCount = 0; //number of files in directory 
-static pthread_t* threadArray;
 
 int part1(){
 
@@ -52,7 +51,6 @@ int part1(){
     }
 
     pthread_t tid[fileCount]; //create array of thread id's equal to num files
-    threadArray = tid;
     int test; //variable to hold thread return value
     
     struct dirent* file = malloc(sizeof(struct dirent));
@@ -100,14 +98,14 @@ int part1(){
 
     }
 
-    ///*debugging code to see if threads were named correctly
+    /*debugging code to see if threads were named correctly
     for (int k = 0; k < fileCount; k++){
         char* name = malloc(16);
         pthread_getname_np(tid[k], name, 16);
         printf("thread name: %s\n", name);
         free(name);
     }
-    //**********************/
+    **********************/
 
     for (int j = 0; j < fileCount; j++){
         
