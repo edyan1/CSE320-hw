@@ -16,13 +16,14 @@ struct result {
     int tid;
 };
 
-//init struct for storing country data
+//struct for storing country data
 struct reduceCountries {
     char* code;
     int visits;
 };
 
-struct t_args{ //thread arugments
+//thread arugments
+struct t_args{ 
     FILE* file;
     int tid;
 };
@@ -32,7 +33,7 @@ static char* resultName;
 static struct reduceCountries* queryE;
 
 static int fileCount = 0; //number of files in directory 
-//static sem_t mutex;
+static pthread_t* threadArray;
 
 int part1(){
 
@@ -51,6 +52,7 @@ int part1(){
     }
 
     pthread_t tid[fileCount]; //create array of thread id's equal to num files
+    threadArray = tid;
     int test; //variable to hold thread return value
     
     struct dirent* file = malloc(sizeof(struct dirent));
@@ -81,8 +83,15 @@ int part1(){
                 args->tid = a;
                 args->file = f;
                 
+                char* threadName = malloc(16);
+                threadName = strcpy(threadName, "map");
+                threadName += 3;
+                sprintf(threadName,"%d",a);
+                threadName -=3;
                 if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
+                if((test=pthread_setname_np(tid[a],threadName))!=0) break;
                 free(path);
+                free(threadName);
                 a++;
             }
             
@@ -91,9 +100,22 @@ int part1(){
 
     }
 
-    for (int j = 0; j < fileCount; j++){
-        pthread_join(tid[j], NULL);
+    ///*debugging code to see if threads were named correctly
+    for (int k = 0; k < fileCount; k++){
+        char* name = malloc(16);
+        pthread_getname_np(tid[k], name, 16);
+        printf("thread name: %s\n", name);
+        free(name);
     }
+    //**********************/
+
+    for (int j = 0; j < fileCount; j++){
+        
+        pthread_join(tid[j], NULL);
+    
+    }
+
+   
     
     if (!strcmp(QUERY_STRINGS[current_query], "E")){
         int* reduceResult = reduce(NULL);
@@ -116,11 +138,12 @@ int part1(){
 
 static void* map(void* v){
 
+    //copy arguments to new struct
     struct t_args mapArgs;
     mapArgs.file = ((struct t_args*)v)->file;
     mapArgs.tid = ((struct t_args*)v)->tid;
     free(v);
-    
+
     //init variables for storing read in file data
     long timestamp;
     char* ip = malloc(16);
@@ -140,24 +163,16 @@ static void* map(void* v){
     int yearCount = 0;
     double yearsAvg = 0;
 
-    //init variables for scanning country data
-    struct count {
-        char* code;
-        int visits;
-    };
 
-    //initialize country visit counting struct
- 
-    struct count counts[10];
+    //initialize country visit counting struct, for a max of 10 distinct country codes
+    struct reduceCountries counts[10];
     for (int r=0; r<10; r++){
         counts[r].code = NULL;
         counts[r].visits = 0;
     }
     
-    int countryFlagged;
-    //int countryCounter = 0;
- 
-    char* country = malloc(5);
+    int countryFlagged; //flag that tracks whether a country has already been added to array
+    char* country = malloc(5); //buffer for storing country code
     
 
     while (fscanf(mapArgs.file, "%ld,%15[^,],%d,%s\n", &timestamp, ip, &dur, country) != EOF) {
@@ -211,6 +226,7 @@ static void* map(void* v){
     if(yearCount > 0 )yearsAvg = yearsAvg/yearCount;
     else yearsAvg = 0;
 
+    //get country with max occurrences
     if (!strcmp(QUERY_STRINGS[current_query], "E")){
         int highestCountry = 0;
         int mostUsers = counts[0].visits;
@@ -353,8 +369,6 @@ static void* reduce(void* v){
 
         }
 
-
-
         int highestCountry = 0;
         int mostUsers = rCount[0].visits;
         for (int l = 1; l < 10; l++){
@@ -384,8 +398,6 @@ static void* reduce(void* v){
             }
         }
         */
-
-        printf("%s\t%d\n",resultName, queryE[highestCountry].visits);
 
         return &queryE[highestCountry].visits;
     }
