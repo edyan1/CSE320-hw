@@ -30,7 +30,7 @@ struct t_args{
 static struct result* resPtr;
 static char* resultName;
 static double* reduceResult;
-//static struct reduceCountries* queryE;
+static int eResult; //result for query e
 
 pthread_mutex_t writeLock; //mutex lock for from writing
 pthread_mutex_t lock; //mutex lock for reader and writers
@@ -153,7 +153,7 @@ int part3(size_t nthreads) {
     if(pthread_create(&reduceId, NULL, reduce, NULL) != 0) return EXIT_FAILURE;
     else pthread_setname_np(reduceId, "reduce");
 
-    ///*debugging code to see if threads were named correctly
+    /*debugging code to see if threads were named correctly
     for (int k = 0; k < numT; k++){
         char* name = malloc(16);
         pthread_getname_np(tid[k], name, 16);
@@ -164,7 +164,7 @@ int part3(size_t nthreads) {
     pthread_getname_np(reduceId, reduceName, 16);
     printf("reduce name: %s\n", reduceName);
     free(reduceName);
-    //**********************/
+    **********************/
 
     for (int j = 0; j < numT; j++){
         pthread_join(tid[j], NULL);
@@ -174,10 +174,16 @@ int part3(size_t nthreads) {
     pthread_mutex_destroy(&lock); //destroy the lock
     pthread_mutex_destroy(&writeLock); //destroy the writelock
 
-    //double* reduceResult = reduce(NULL);
-
-    printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
-        PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
+    if (!strcmp(QUERY_STRINGS[current_query], "E")){
+        
+        printf("Part: %s\n""Query: %s\nResult: %d, %s\n", 
+        PART_STRINGS[current_part], QUERY_STRINGS[current_query], eResult, resultName);
+    }
+    else {
+        
+        printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
+            PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
+    }
 
     
     free(file);
@@ -236,26 +242,15 @@ static void* map(void* v){
         int visits;
     };
 
-
-
-    //initialize country visit counting struct
-    /*
-    struct count counts[10];
+    //initialize country visit counting struct, for a max of 10 distinct country codes
+    struct reduceCountries counts[10];
     for (int r=0; r<10; r++){
         counts[r].code = NULL;
         counts[r].visits = 0;
     }
     
-
-    int countryCounter = 0;
-    */
-    char* country = malloc(3);
-    /*
-    char* countries= calloc(100000,3);
-    char* cPtr = countries; //store the address
-    //char** countries = calloc(100000,4);
-    int countriesCount = 0;
-    */
+    int countryFlagged; //flag that tracks whether a country has already been added to array
+    char* country = malloc(5); //buffer for storing country code
     
     while (fscanf(f, "%ld,%15[^,],%d,%s\n", &timestamp, ip, &dur, country) != EOF) {
         //printf("%ld\t%s\t%d\t%s\n", timestamp, ip, dur, country);
@@ -265,30 +260,33 @@ static void* map(void* v){
         year = localtime_r(timePtr, time)->tm_year;
         years[year-70] += 1;
 
-        /*/store every country code into array
-        strncpy(countries, country, 3);
-        countriesCount++;
-        countries+=3;
-        */ /*
-        int exists = 0;
-        for (int s=0; s<10; s++){
-            if (counts[s].code!=NULL && !strcmp(counts[s].code, country)) exists = 1;
+        /*
+        As countries are read in, add the name of it to array of countries (up to 10)
+        if it does not exist in that array, add it to first empty slot
+        if it does, add a count to userNum array
+        */
+        if (!strcmp(QUERY_STRINGS[current_query], "E")){
 
-            //printf("storing %s\t", country);
-        }
-        if (exists){ 
-            for (int t=0; t<10; t++){
-                if (!strcmp(counts[t].code, country)) counts[t].visits++;
-                //printf("storing %s\t", country);
+            countryFlagged = 0;
+
+            for (int i = 0; i < 10; i++){
+                if (counts[i].code != NULL && strcmp(country, counts[i].code)==0) {
+                    countryFlagged = 1;
+                    counts[i].visits++;
+                }
             }
-            exists = 0;
-        }
-        else if (!exists){
-            for (int u=0; u<10; u++){
-                if (counts[u].code == NULL) counts[u].code = country;
-                //printf("storing %s\t", country);
+            if (countryFlagged == 0) { //if not on the list, add it and set visits to 1
+                for (int j = 0; j < 10; j++){
+                    if (counts[j].code == NULL){
+                        counts[j].code = strdup(country);
+                        counts[j].visits = 1;
+                        break;
+                    }
+                    
+                }
             }
-        }*/
+        }
+
 
 
     }
@@ -307,51 +305,55 @@ static void* map(void* v){
     if(yearCount > 0 )yearsAvg = yearsAvg/yearCount;
     else yearsAvg = 0;
 
-    //get the country code with max occurrence
-    /*
-    for (int c = 0; c < 300000; c=c+3){
-        countriesCount = 1;
-        for(int d = c+3; d < 300000; d=d+3){
-            if(!strcmp(cPtr+c,cPtr+d) && strcmp(cPtr+c,"\0")){
-                countriesCount++;
-                memset(cPtr+d, 0, 3);
+    //get country with max occurrences
+    int highestCountry = 0;
+    int mostUsers = counts[0].visits;
+    if (!strcmp(QUERY_STRINGS[current_query], "E")){
+        
+        for (int k = 1; k < 10; k++){
+            if (counts[k].visits > mostUsers){
+                mostUsers = counts[k].visits;
+                highestCountry = k;
+            }
+            else if (counts[k].visits == mostUsers){
+                if(strcmp(counts[k].code, counts[highestCountry].code) < 0){
+                    mostUsers = counts[k].visits;
+                    highestCountry = k;
+                }
             }
         }
-        if(strcmp(cPtr+c,"\0")){
-            counts[countryCounter].code = cPtr+c;
-            counts[countryCounter].visits = countriesCount;
-            countryCounter++;
-        }
-    }*/
 
-    //sizeof(countries) == 8
-    /*
-    char* countryMost;
-    int mostVisits = 0;
-    for (int e = 0; e < 10; e++){
-        if(counts[e].visits > mostVisits){
-            mostVisits = counts[e].visits;
-            countryMost = counts[e].code;
-        }
+    }
 
-    }*/
-
-    //resPtr[fileNum].durAvg = durAvg;
-    //resPtr[fileNum].yearAvg = yearsAvg;
     char* writeString = calloc(200, 1);
     char* durAvgBuf = malloc(30);
     char* yearAvgBuf = malloc(30);
+    char* countryBuf = malloc(30);
+    char* usersBuf = malloc(30);
     writeString = strdup(resPtr[fileNum].name);
-    snprintf(durAvgBuf, 30, "%lf", durAvg);
-    snprintf(yearAvgBuf, 30, "%lf", yearsAvg);
 
-    
-    fputs(writeString, mapred);
-    fputs("\t", mapred);
-    fputs(durAvgBuf, mapred);
-    fputs("\t", mapred);
-    fputs(yearAvgBuf, mapred);
-    fputs("\n", mapred);
+    //write country and user info if E
+    if (!strcmp(QUERY_STRINGS[current_query], "E")){
+        snprintf(countryBuf, 30, "%s", counts[highestCountry].code);
+        snprintf(usersBuf, 30, "%d", mostUsers);
+        fputs(writeString, mapred);
+        fputs("\t", mapred);
+        fputs(countryBuf, mapred);
+        fputs("\t", mapred);
+        fputs(usersBuf, mapred);
+        fputs("\n", mapred);
+    }
+    //otherwise write averages
+    else {
+        snprintf(durAvgBuf, 30, "%lf", durAvg);
+        snprintf(yearAvgBuf, 30, "%lf", yearsAvg);   
+        fputs(writeString, mapred);
+        fputs("\t", mapred);
+        fputs(durAvgBuf, mapred);
+        fputs("\t", mapred);
+        fputs(yearAvgBuf, mapred);
+        fputs("\n", mapred);
+    }
     
     if (fileNum==0) {
         //last file being written
@@ -365,6 +367,8 @@ static void* map(void* v){
     free(writeString);
     free(durAvgBuf);
     free(yearAvgBuf);
+    free(countryBuf);
+    free(usersBuf);
 
     //unlocking:
     wFlag = 0;
@@ -396,88 +400,161 @@ static void* reduce(void* v){
         double minDur;
         double maxYear = 0;
         double minYear;
+        char* countryCode = malloc(5);
+        int users = 0;
         
         FILE* reduce = fopen("mapred.tmp", "r");
 
-        fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &minDur, &minYear);
-        ;
-        maxDur = minDur;
-        maxYear = minYear;
-        resultName = strdup(fileName);
-        
-        while (fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &avgDur, &avgYear) != EOF){
+
+        if (!strcmp(QUERY_STRINGS[current_query], "E")){
+
+            //initialize country visit counting struct
+            struct reduceCountries rCount[10];
+            for (int r=0; r<10; r++){
+                rCount[r].code = NULL;
+                rCount[r].visits = 0;
+            }
             
-            if (!strcmp(QUERY_STRINGS[current_query], "A")){
-                if (avgDur > maxDur) {
-                    maxDur = avgDur;
-                    resultName = strdup(fileName);
+            fscanf(reduce, "%s\t%s\t%d\n", fileName, countryCode, &users);
+            rCount[0].code = strdup(fileName);
+            rCount[0].visits = users;
+
+            while (fscanf(reduce, "%s\t%s\t%d\n", fileName, countryCode, &users) != EOF){
+                int countryFlagged = 0; //flag to see if country has been included in array
+                //similar algorithm in map for sorting countries
+                
+                for (int j = 0; j < 10; j++){
+
+                    if (rCount[j].code != NULL && strcmp(countryCode, rCount[j].code)==0) {
+                        countryFlagged = 1;
+                        rCount[j].visits += users;
+                    }
+
+                }
+                if (countryFlagged == 0) { //if not on the list, add it and set visits to 1
+                    for (int k = 0; k < 10; k++){
+                        if (rCount[k].code == NULL){
+                            rCount[k].code = strdup(countryCode);
+                            rCount[k].visits = users;
+                            break;
+                        }
+                        
+                    }
                 }
             }
 
-            else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-                if (avgDur < minDur) {
-                    minDur = avgDur;
-                    resultName = strdup(fileName);
+            int highestCountry = 0;
+            int mostUsers = rCount[0].visits;
+            for (int l = 1; l < 10; l++){
+
+                if (rCount[l].code!=NULL){
+                    if (rCount[l].visits > mostUsers){
+                        mostUsers = rCount[l].visits;
+                        highestCountry = l;
+                    }
+                    else if (rCount[l].visits == mostUsers){
+                        if(strcmp(rCount[l].code, rCount[highestCountry].code) < 0){
+                            mostUsers = rCount[l].visits;
+                            highestCountry = l;
+                        }
+                    }
                 }
             }
 
-            else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-                if (avgYear > maxYear) {
-                    maxYear = avgYear;
-                    resultName = strdup(fileName);
+            resultName = rCount[highestCountry].code;
+            eResult = mostUsers;
+
+            fflush(reduce);
+            free(fileName);
+            fclose(reduce);
+        }
+
+        else { 
+            fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &minDur, &minYear);
+            maxDur = minDur;
+            maxYear = minYear;
+            resultName = strdup(fileName);
+            
+            while (fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &avgDur, &avgYear) != EOF){
+                
+                if (!strcmp(QUERY_STRINGS[current_query], "A")){
+                    if (avgDur > maxDur) {
+                        maxDur = avgDur;
+                        resultName = strdup(fileName);
+                    }
                 }
-                else if (avgYear == maxYear){
-                    if (strcmp(fileName, resultName) < 0) {
+
+                else if (!strcmp(QUERY_STRINGS[current_query], "B")){
+                    if (avgDur < minDur) {
+                        minDur = avgDur;
+                        resultName = strdup(fileName);
+                    }
+                }
+
+                else if (!strcmp(QUERY_STRINGS[current_query], "C")){
+                    if (avgYear > maxYear) {
                         maxYear = avgYear;
                         resultName = strdup(fileName);
                     }
+                    else if (avgYear == maxYear){
+                        if (strcmp(fileName, resultName) < 0) {
+                            maxYear = avgYear;
+                            resultName = strdup(fileName);
+                        }
+                    }
                 }
-            }
-    
-            else if (!strcmp(QUERY_STRINGS[current_query], "D")){    
-                if (avgYear < minYear) {
-                    minYear = avgYear;
-                    resultName = strdup(fileName);
-                }
-                else if (avgYear == minYear){
-                    if (strcmp(fileName, resultName) < 0) {
+        
+                else if (!strcmp(QUERY_STRINGS[current_query], "D")){    
+                    if (avgYear < minYear) {
                         minYear = avgYear;
                         resultName = strdup(fileName);
                     }
+                    else if (avgYear == minYear){
+                        if (strcmp(fileName, resultName) < 0) {
+                            minYear = avgYear;
+                            resultName = strdup(fileName);
+                        }
+                    }
                 }
+
+            }
+    
+            fflush(reduce);
+            free(fileName);
+            fclose(reduce);
+
+
+            if (!strcmp(QUERY_STRINGS[current_query], "A")){
+             
+                reduceResult = &maxDur;
+            }
+
+            //find min avg duration
+            else if (!strcmp(QUERY_STRINGS[current_query], "B")){
+           
+             
+                reduceResult = &minDur;
+            }
+
+            //find max avg users per year
+            else if (!strcmp(QUERY_STRINGS[current_query], "C")){
+
+
+                reduceResult = &maxYear;
+            }
+            //find min avg users per year
+            else if (!strcmp(QUERY_STRINGS[current_query], "D")){
+            
+                reduceResult = &minYear;
+            }
+            
+            //country with most users
+            else if (!strcmp(QUERY_STRINGS[current_query], "E")){
+            
+                reduceResult = &minYear;
             }
         }
     
-        fflush(reduce);
-        free(fileName);
-        fclose(reduce);
-
-        if (!strcmp(QUERY_STRINGS[current_query], "A")){
-         
-            reduceResult = &maxDur;
-        }
-
-        //find min avg duration
-        else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-       
-         
-            reduceResult = &minDur;
-        }
-
-        //find max avg users per year
-        else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-
-
-            reduceResult = &maxYear;
-        }
-        //find min avg users per year
-        else if (!strcmp(QUERY_STRINGS[current_query], "D")){
-        
-            reduceResult = &minYear;
-        }
-         //unlock
-        //country with most users
-        //else return 0;
       
         int fm = filesMapped;
         

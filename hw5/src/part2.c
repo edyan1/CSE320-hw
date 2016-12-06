@@ -378,7 +378,6 @@ static void* reduce(void* v){
        
 
         //initialize country visit counting struct
-     
         struct reduceCountries rCount[10];
         for (int r=0; r<10; r++){
             rCount[r].code = NULL;
