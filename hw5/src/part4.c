@@ -334,7 +334,13 @@ static void* reduce(void* v){
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE,NULL); //set uncancellable
         pthread_mutex_lock(&writeLock); 
 
-
+        /************
+        Perform individual checking of the buffer according to the query input
+        1. set base max or min as value of first file
+        2. read value from buffer (either duration average or year average)
+        3. update max or min accordingly
+        4. update the global static variables that hold the results (resultName and reduceResult)
+        ************/
 
         if (!strcmp(QUERY_STRINGS[current_query], "A")){
             void* maxAvgDur = &(resPtr[0].durAvg);
@@ -406,6 +412,14 @@ static void* reduce(void* v){
         //country with most users
         else if (!strcmp(QUERY_STRINGS[current_query], "E")){
            
+            /********
+            1.Initialize a struct to keep track of up to 10 country codes and their visit #s
+            2.read in each file and check to see if the country code is in the struct
+            3.if found, add its visits together
+            4.if not found, add that country code and its visits to the struct
+            5.go through struct array and find the country with the highest visits and return its code and visit #
+            ********/
+
             //initialize country visit counting struct
             struct reduceCountries rCount[10];
             for (int r=0; r<10; r++){

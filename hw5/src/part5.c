@@ -19,7 +19,8 @@ typedef int socketArray[2]; //socket array file descriptor
 //struct to store the result of each file
 struct result {
     char* name;
-   
+    double durAvg;
+    double yearAvg;
     char* countryMost;
     int users;
     int fid;
@@ -43,6 +44,7 @@ static char* resultName;
 static double* reduceResult;
 static int eResult; //result for query e
 static socketArray* socketPtr; //pointer to sockets array
+static struct pollfd* pollPtr;
 
 pthread_mutex_t writeLock; //mutex lock for from writing
 pthread_mutex_t lock; //mutex lock for reader and writers
@@ -56,6 +58,7 @@ static int fileCountMap; //counter used by map function
 static int filesMapped = 0;
 static int filesPerThread; //counter to keep track of how many files each thread has to scan
 static int filesLeft; //and the left over files to be distributed among the threads
+static int numT;
 
 
 int part5(size_t nthreads) {
@@ -99,7 +102,6 @@ int part5(size_t nthreads) {
     resPtr = results;
 
 
-
     fileCountMap = fileCount;
     int a=0;
     while (a < fileCount){
@@ -128,7 +130,7 @@ int part5(size_t nthreads) {
     closedir(data2);
 
     //calculate files per thread
-    int numT = nthreads; //number of threads user asked
+    numT = nthreads; //number of threads user asked
     if (numT > fileCount) numT = fileCount;
     filesPerThread = fileCount/numT;
     filesLeft = fileCount%numT;
@@ -136,9 +138,12 @@ int part5(size_t nthreads) {
     pthread_t tid[numT]; //create array of thread id's equal to num files
     int test; //variable to hold thread return value
 
-    socketArray sockets[numT]; //socket array with nthreads values and 2 values for each
+    socketArray sockets[numT]; //socket array with # of threads values and 2 values for each
     socketPtr = sockets;
     
+    struct pollfd pollsArray[numT]; //poll array with # of threads polls
+    pollPtr = pollsArray;
+
 
     for (int i = 0; i < numT; i++){
 
@@ -167,9 +172,9 @@ int part5(size_t nthreads) {
     }
 
 
-    /*pthread_t reduceId; //store the thread id of the reduce thread
+    pthread_t reduceId; //store the thread id of the reduce thread
     if(pthread_create(&reduceId, NULL, reduce, NULL) != 0) return EXIT_FAILURE;
-    else pthread_setname_np(reduceId, "reduce");*/
+    else pthread_setname_np(reduceId, "reduce");
 
     /*debugging code to see if threads were named correctly
     for (int k = 0; k < numT; k++){
@@ -187,7 +192,7 @@ int part5(size_t nthreads) {
     for (int j = 0; j < numT; j++){
         pthread_join(tid[j], NULL);
     }
-    /*pthread_cancel(reduceId);*/
+    pthread_cancel(reduceId);
 
     pthread_mutex_destroy(&lock); //destroy the lock
     pthread_mutex_destroy(&writeLock); //destroy the writelock
@@ -202,8 +207,6 @@ int part5(size_t nthreads) {
         printf("Part: %s\n""Query: %s\nResult: %.5g, %s\n", 
             PART_STRINGS[current_part], QUERY_STRINGS[current_query], *reduceResult, resultName);
     }
-
-    reduce(NULL);
 
     free(file);
     free(filesList);
@@ -349,34 +352,32 @@ static void* map(void* v){
     char* yearAvgBuf = calloc(30,1);
     char* countryBuf = calloc(30,1);
     char* usersBuf = calloc(30,1);
+
     fName = strdup(resPtr[fileNum].name);
 
+    //initialize and write file number and name to socket
     int wSock = socketPtr[mapArgs.tid][1];
-
+    dprintf(wSock, "%d\t",fileNum);
     dprintf(wSock, "%s\t", fName);
 
     //write country and user info if E
     if (!strcmp(QUERY_STRINGS[current_query], "E")){
-
+        //write country and user count to socket
         dprintf(wSock, "%s\t", counts[highestCountry].code);
         dprintf(wSock, "%d\n", mostUsers);
 
     }
     //otherwise write averages
     else {
-
+        //write duration average and year average to socket
         dprintf(wSock, "%lf\t", durAvg);
         dprintf(wSock, "%lf\n", yearsAvg);   
     }
-    
-    /*
-    if (fileNum==0) {
-        //last file being written
-        char eof = EOF;
-        fputc(eof, mapred); //write EOF char onto file
-    }
-    */
 
+    //store fd in poll struct for reduce()
+    pollPtr[mapArgs.tid].fd = socketPtr[mapArgs.tid][1];
+    pollPtr[mapArgs.tid].events = POLLIN|POLLPRI;
+    
     //*debugging, testing reading back from socket
     char* readBack = calloc(320,1);
     read(socketPtr[mapArgs.tid][0], readBack, 320);
@@ -416,6 +417,7 @@ static void* reduce(void* v){
         while (wFlag == 1) pthread_cond_wait(&readCond, &writeLock);
         rFlag = 1;
 
+        int fNum;
         char* fileName = malloc(256);
         double avgDur;
         double avgYear;
@@ -425,11 +427,50 @@ static void* reduce(void* v){
         double minYear;
         char* countryCode = malloc(5);
         int users = 0;
-        
-        FILE* reduce = fopen("mapred.tmp", "r");
+
+        int retval; //return value when poll() is called
+
+        if ((retval = poll(pollPtr, (unsigned long)numT, -1) < 0)) {
+            fprintf(stderr, "Error polling: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        else printf("poll retrieved");
 
 
         if (!strcmp(QUERY_STRINGS[current_query], "E")){
+
+            
+
+            for (int i = 0; i < numT;i++){
+
+                FILE* readPoll;
+
+                if((pollPtr[i].revents&POLLIN)==POLLIN) {
+                    
+                    readPoll = fdopen(pollPtr[i].fd,"r");
+                    fscanf(readPoll, "%d\t%s\t%s\t%d\n", &fNum, fileName, countryCode, &users);
+                    if(strcmp(resPtr[fNum].name, fileName) == 0){
+                        resPtr[fNum].countryMost = strdup(countryCode);
+                        resPtr[fNum].users = users;
+                        printf("normal file scanned:%s\n",resPtr[fNum].name);
+                    }
+
+
+                    fclose(readPoll);
+                }
+                if((pollPtr[i].revents&POLLPRI)==POLLPRI){
+                    readPoll = fdopen(pollPtr[i].fd,"r");
+                    fscanf(readPoll, "%d\t%s\t%s\t%d\n", &fNum, fileName, countryCode, &users);
+                    if(strcmp(resPtr[fNum].name, fileName) == 0){
+                        resPtr[fNum].countryMost = strdup(countryCode);
+                        resPtr[fNum].users = users;
+                        printf("priority file scanned:%s\n",resPtr[fNum].name);
+                    }
+                    fclose(readPoll);
+                }
+
+
+            }
 
             //initialize country visit counting struct
             struct reduceCountries rCount[10];
@@ -438,32 +479,34 @@ static void* reduce(void* v){
                 rCount[r].visits = 0;
             }
             
-            fscanf(reduce, "%s\t%s\t%d\n", fileName, countryCode, &users);
-            rCount[0].code = strdup(fileName);
-            rCount[0].visits = users;
 
-            while (fscanf(reduce, "%s\t%s\t%d\n", fileName, countryCode, &users) != EOF){
+            for (int i = fileCount-1; i > (fileCount-filesMapped); i--){
+
                 int countryFlagged = 0; //flag to see if country has been included in array
                 //similar algorithm in map for sorting countries
                 
-                for (int j = 0; j < 10; j++){
+                if (resPtr[i].countryMost!=NULL && resPtr[i].users > 0) { //only run if buffer space has been written to
 
-                    if (rCount[j].code != NULL && strcmp(countryCode, rCount[j].code)==0) {
-                        countryFlagged = 1;
-                        rCount[j].visits += users;
-                    }
+                    for (int j = 0; j < 10; j++){
 
-                }
-                if (countryFlagged == 0) { //if not on the list, add it and set visits to 1
-                    for (int k = 0; k < 10; k++){
-                        if (rCount[k].code == NULL){
-                            rCount[k].code = strdup(countryCode);
-                            rCount[k].visits = users;
-                            break;
+                        if (rCount[j].code != NULL && strcmp(resPtr[i].countryMost, rCount[j].code)==0) {
+                            countryFlagged = 1;
+                            rCount[j].visits += resPtr[i].users;
                         }
-                        
+
+                    }
+                    if (countryFlagged == 0) { //if not on the list, add it and set visits to 1
+                        for (int k = 0; k < 10; k++){
+                            if (rCount[k].code == NULL && resPtr[i].countryMost!=NULL){
+                                rCount[k].code = (resPtr[i].countryMost);
+                                rCount[k].visits = resPtr[i].users;
+                                break;
+                            }
+                            
+                        }
                     }
                 }
+
             }
 
             int highestCountry = 0;
@@ -484,67 +527,133 @@ static void* reduce(void* v){
                 }
             }
 
-            resultName = rCount[highestCountry].code;
-            eResult = mostUsers;
+            if (rCount[highestCountry].code!=NULL) resultName = strdup(rCount[highestCountry].code);
+            //void* users = &queryE[highestCountry].visits;
 
-            fflush(reduce);
+            
+            /*
+            //debugging
+            for (int m = 0; m < 10; m++){
+                if (rCount[m].code != NULL){
+                    printf("REDUCE%s\t%d\n", rCount[m].code, rCount[m].visits);
+                }
+            }
+            */
+            
+
+            eResult = rCount[highestCountry].visits;
+
+          
             free(fileName);
-            fclose(reduce);
+            free(countryCode);
+            
+        
         }
 
         else { 
-            fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &minDur, &minYear);
-            maxDur = minDur;
-            maxYear = minYear;
-            resultName = strdup(fileName);
+
             
-            while (fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &avgDur, &avgYear) != EOF){
+
+            for (int i = 0; i < numT;i++){
+
+                int fNum; //file number
+                FILE* readPoll;
+
+                if((pollPtr[i].revents&POLLIN)==POLLIN) {
+                    
+                    readPoll = fdopen(pollPtr[i].fd,"r");
+                    fscanf(readPoll, "%d\t%s\t%lf\t%lf\n", &fNum, fileName, &avgDur, &avgYear);
+                    if(strcmp(resPtr[fNum].name, fileName) == 0){
+                        resPtr[fNum].durAvg = avgDur;
+                        resPtr[fNum].yearAvg = avgYear;
+                        fclose(readPoll);
+                    }
+                }
+                if((pollPtr[i].revents&POLLPRI)==POLLPRI){
+                    readPoll = fdopen(pollPtr[i].fd,"r");
+                    fscanf(readPoll, "%d\t%s\t%lf\t%lf\n", &fNum, fileName, &avgDur, &avgYear);
+                    if(strcmp(resPtr[fNum].name, fileName) == 0){
+                        resPtr[fNum].durAvg = avgDur;
+                        resPtr[fNum].yearAvg = avgYear;
+                        fclose(readPoll);
+                    }                 
+                }
+
                 
-                if (!strcmp(QUERY_STRINGS[current_query], "A")){
-                    if (avgDur > maxDur) {
-                        maxDur = avgDur;
-                        resultName = strdup(fileName);
-                    }
+            }
+
+            
+
+            if (!strcmp(QUERY_STRINGS[current_query], "A")){
+                void* maxAvgDur = &(resPtr[0].durAvg);
+                resultName = resPtr[0].name;
+                for (int i = fileCount-1; i >= (fileCount-filesMapped); i--){
+                    if (resPtr[i].durAvg > *(double*)maxAvgDur){
+                        maxAvgDur = &resPtr[i].durAvg;
+                        resultName = resPtr[i].name;
+                    } 
+                    
                 }
 
-                else if (!strcmp(QUERY_STRINGS[current_query], "B")){
-                    if (avgDur < minDur) {
-                        minDur = avgDur;
-                        resultName = strdup(fileName);
+                reduceResult = maxAvgDur;
+            }
+
+            //find min avg duration
+            else if (!strcmp(QUERY_STRINGS[current_query], "B")){
+                void* minAvgDur = &(resPtr[0].durAvg);
+                resultName = resPtr[0].name;
+                for (int i = fileCount-1; i >= (fileCount-filesMapped); i--){ 
+                    if (resPtr[i].durAvg < *(double*)minAvgDur) {
+                        minAvgDur = &resPtr[i].durAvg;
+                        resultName = resPtr[i].name;
                     }
                 }
+             
+                reduceResult = minAvgDur;
+            }
 
-                else if (!strcmp(QUERY_STRINGS[current_query], "C")){
-                    if (avgYear > maxYear) {
-                        maxYear = avgYear;
-                        resultName = strdup(fileName);
-                    }
-                    else if (avgYear == maxYear){
-                        if (strcmp(fileName, resultName) < 0) {
-                            maxYear = avgYear;
-                            resultName = strdup(fileName);
+            //find max avg users per year
+            else if (!strcmp(QUERY_STRINGS[current_query], "C")){
+                void* maxYearsAvg = &(resPtr[0].yearAvg);
+                resultName = resPtr[0].name;
+                for (int i = fileCount-1; i >= (fileCount-filesMapped); i--){
+                    if (resPtr[i].yearAvg > *(double*)maxYearsAvg){
+                        maxYearsAvg = &resPtr[i].yearAvg;
+                        resultName = resPtr[i].name;
+                    } 
+                    else if (resPtr[i].yearAvg == *(double*)maxYearsAvg){
+                        if (strcmp(resPtr[i].name, resultName) < 0) {
+                            maxYearsAvg = &resPtr[i].yearAvg;
+                            resultName = resPtr[i].name;
                         }
-                    }
-                }
-        
-                else if (!strcmp(QUERY_STRINGS[current_query], "D")){    
-                    if (avgYear < minYear) {
-                        minYear = avgYear;
-                        resultName = strdup(fileName);
-                    }
-                    else if (avgYear == minYear){
-                        if (strcmp(fileName, resultName) < 0) {
-                            minYear = avgYear;
-                            resultName = strdup(fileName);
-                        }
-                    }
+                    } 
                 }
 
+                reduceResult = maxYearsAvg;
+            }
+            //find min avg users per year
+            else if (!strcmp(QUERY_STRINGS[current_query], "D")){
+                void* minYearsAvg = &resPtr[0].yearAvg;
+                resultName = resPtr[0].name;
+                for (int i = fileCount-1; i >= (fileCount-filesMapped); i--){ 
+                    if (resPtr[i].yearAvg < *(double*)minYearsAvg){
+                        minYearsAvg = &resPtr[i].yearAvg;
+                        resultName = resPtr[i].name;
+                    }
+                    else if (resPtr[i].yearAvg == *(double*)minYearsAvg){
+                        if (strcmp(resPtr[i].name, resultName) < 0) {
+                            minYearsAvg = &resPtr[i].yearAvg;
+                            resultName = resPtr[i].name;
+                        }
+                    }  
+                }
+
+                reduceResult = minYearsAvg;
             }
     
-            fflush(reduce);
             free(fileName);
-            fclose(reduce);
+            free(countryCode);
+            
 
 
             if (!strcmp(QUERY_STRINGS[current_query], "A")){
@@ -577,6 +686,8 @@ static void* reduce(void* v){
                 reduceResult = &minYear;
             }
         }
+
+
     
       
         int fm = filesMapped;

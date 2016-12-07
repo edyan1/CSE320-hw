@@ -76,11 +76,13 @@ int part1(){
                 path = strcat(path, "/");
                 path = strcat(path, (*filesList)->d_name);
                 FILE *f = fopen(path,"r"); //file to open
-                //create thread
+
+                //init args for thread
                 struct t_args* args = malloc(sizeof(struct t_args));
                 args->tid = a;
                 args->file = f;
                 
+                //create and name thread
                 char* threadName = malloc(16);
                 threadName = strcpy(threadName, "map");
                 threadName += 3;
@@ -107,6 +109,7 @@ int part1(){
     }
     **********************/
 
+    //join all map threads
     for (int j = 0; j < fileCount; j++){
         
         pthread_join(tid[j], NULL);
@@ -114,7 +117,7 @@ int part1(){
     }
 
    
-    
+    //output results  by calling reduce
     if (!strcmp(QUERY_STRINGS[current_query], "E")){
         int* reduceResult = reduce(NULL);
         printf("Part: %s\n""Query: %s\nResult: %d, %s\n", 

@@ -59,6 +59,7 @@ int part2(size_t nthreads) {
 
     struct dirent* dataRead;
     /*find number of files and in data directory and set our dirent array to appropriate size */
+    //ignoring . and ..
     while ((dataRead = readdir(data))) {
         if (
             strcmp(dataRead->d_name, ".") != 0 &&
@@ -71,10 +72,13 @@ int part2(size_t nthreads) {
     struct dirent**filesList = malloc(sizeof(struct dirent) * fileCount);
     closedir(data);
 
+    //init result struct array for all the files
     struct result results[fileCount];
     resPtr = results;
 
+    //fileCountMap is the counter each map thread will use to know how many files are left to map
     fileCountMap = fileCount;
+
     int a=0;
     while (a < fileCount){
         readErr = readdir_r(data2, file, filesList);
@@ -86,15 +90,12 @@ int part2(size_t nthreads) {
                 results[a].fid = a;
                 
                 //get pathname to open file
+                //store in buffer for each individual thread to read
                 char* path = malloc(256);
                 path = strcpy(path, DATA_DIR);
                 path = strcat(path, "/");
                 path = strcat(path, (*filesList)->d_name);
                 results[a].pathname = strdup(path);
-
-                //FILE *f = fopen(path,"r"); //file to open
-                    
-                //if((test=pthread_create(&tid[a], NULL, map, args))!=0) break;
                 free(path);
                 a++;
             }
@@ -150,6 +151,7 @@ int part2(size_t nthreads) {
     }
     pthread_mutex_destroy(&lock); //destroy the lock
 
+    //output the result by calling reduce
     if (!strcmp(QUERY_STRINGS[current_query], "E")){
         int* reduceResult = reduce(NULL);
         printf("Part: %s\n""Query: %s\nResult: %d, %s\n", 
@@ -430,7 +432,6 @@ static void* reduce(void* v){
         }
 
         resultName = strdup(rCount[highestCountry].code);
-        //void* users = &queryE[highestCountry].visits;
 
         /*
         //debugging

@@ -8,9 +8,6 @@ static void* reduce(void*);
 //struct to store the result of each file
 struct result {
     char* name;
-   
-    char* countryMost;
-    int users;
     int fid;
     char* pathname;
 };
@@ -408,6 +405,14 @@ static void* reduce(void* v){
 
         if (!strcmp(QUERY_STRINGS[current_query], "E")){
 
+            /********
+            1.Initialize a struct to keep track of up to 10 country codes and their visit #s
+            2.read in each file and check to see if the country code is in the struct
+            3.if found, add its visits together
+            4.if not found, add that country code and its visits to the struct
+            5.go through struct array and find the country with the highest visits and return its code and visit #
+            ********/
+
             //initialize country visit counting struct
             struct reduceCountries rCount[10];
             for (int r=0; r<10; r++){
@@ -466,10 +471,21 @@ static void* reduce(void* v){
 
             fflush(reduce);
             free(fileName);
+            free(countryCode);
             fclose(reduce);
         }
 
         else { 
+
+
+            /************
+            Perform individual checking of the buffer according to the query input
+            1. set base max or min as value of first file read in from mapred.tmp
+            2. read in each line from mapred.tmp and store values
+            3. check and update max or min accordingly
+            4. update the global static variables that hold the results (resultName and reduceResult)
+            ************/
+
             fscanf(reduce, "%s\t%lf\t%lf\n", fileName, &minDur, &minYear);
             maxDur = minDur;
             maxYear = minYear;
@@ -521,6 +537,7 @@ static void* reduce(void* v){
     
             fflush(reduce);
             free(fileName);
+            free(countryCode);
             fclose(reduce);
 
 
