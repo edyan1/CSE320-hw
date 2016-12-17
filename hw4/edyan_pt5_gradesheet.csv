@@ -1,0 +1,8 @@
+Test Case,Points,Max Score
+"Ctrl+B: If job exists, store PID of first job.",0,3
+"Ctrl+B: If no job exists, inform user (point was given if storing worked but no alert).",0,1
+"Ctrl+G: If job specified by SPID (Ctrl+B) exists in BG, terminate using SIGTERM.",0,3
+Ctrl+G: If no SPID alert user.,0,1
+Ctrl+H: Help menu,1,1
+Ctrl+P: Info table,1,1
+Total,2,
