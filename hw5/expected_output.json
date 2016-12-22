@@ -1,0 +1,24 @@
+{
+  "query": {
+    "D": {
+      "result_string": "05EE4219.csv",
+      "result": "22.702"
+    },
+    "B": {
+      "result_string": "3CB0F541.csv",
+      "result": "492.09"
+    },
+    "A": {
+      "result_string": "63AA88C4.csv",
+      "result": "508.3"
+    },
+    "C": {
+      "result_string": "6088C54E.csv",
+      "result": "211.83"
+    },
+    "E": {
+      "result_string": "CT",
+      "result": "4362"
+    }
+  }
+}
