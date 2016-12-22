@@ -1,0 +1,29 @@
+TEST,POINTS,OUTOF,OUTPUT
+"Part 1, Query A",0,1,Segfaulted
+"Part 1, Query B",0,1,Segfaulted
+"Part 1, Query C",0,1,Segfaulted
+"Part 1, Query D",0,1,Segfaulted
+"Part 1, Query E",0,1,Segfaulted
+"Part 2, Query A",0,1,Segfaulted
+"Part 2, Query B",0,1,Segfaulted
+"Part 2, Query C",0,1,Segfaulted
+"Part 2, Query D",0,1,Segfaulted
+"Part 2, Query E",0,1,Segfaulted
+"Part 3, Query A",0,1,Segfaulted
+"Part 3, Query B",0,1,Segfaulted
+"Part 3, Query C",0,1,Segfaulted
+"Part 3, Query D",0,1,Segfaulted
+"Part 3, Query E",0,1,Segfaulted
+"Part 4, Query A",0,1,Segfaulted
+"Part 4, Query B",0,1,Segfaulted
+"Part 4, Query C",0,1,Segfaulted
+"Part 4, Query D",0,1,Segfaulted
+"Part 4, Query E",0,1,Segfaulted
+"Part 5, Query A",0,1,Segfaulted
+"Part 5, Query B",0,1,Segfaulted
+"Part 5, Query C",0,1,Segfaulted
+"Part 5, Query D",0,1,Segfaulted
+"Part 5, Query E",0,1,Segfaulted
+Created correct number of threads per file,2,2,Threads counted
+Created correct number of threads requested,2,2,Threads counted
+Total,4,54,
